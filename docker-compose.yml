@@ -1,4 +1,19 @@
 services:
+  parking-app:
+    image: 'docker-spring-boot-postgres:latest'
+    build:
+      context: ./parking-app
+    container_name: parking-app
+    depends_on:
+      - db
+    ports:
+      - "8080:8080"
+    environment:
+    - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/parking-db
+    - SPRING_DATASOURCE_USERNAME=postgres
+    - SPRING_DATASCOURCE_PASSWORD=password
+    - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+
   db:
     image: postgres:16
     environment:
@@ -8,9 +23,5 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro #runs at first start
       - ./db/scripts:/scripts:ro #to test select statements
-  
-volumes:
-  pgdata:

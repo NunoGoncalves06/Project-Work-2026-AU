@@ -1,26 +1,26 @@
-CREATE TABLE Addresses
+CREATE TABLE addresses
 (address_id INTEGER PRIMARY KEY,
 city VARCHAR(50) NOT NULL,
 street VARCHAR(50) NOT NULL,
 house_nr VARCHAR(10) NOT NULL
 );
 
-CREATE TABLE ParkingLots
+CREATE TABLE parking_lots
 (
     parking_lot_id INTEGER PRIMARY KEY,
-    address_id INTEGER REFERENCES Addresses NOT NULL
+    address_id INTEGER REFERENCES addresses NOT NULL
 );
 
-CREATE TABLE EntranceSensors
+CREATE TABLE entrance_sensors
 (
     entrance_sensor_id INTEGER PRIMARY KEY NOT NULL,
-    parking_lot_id INTEGER REFERENCES ParkingLots NOT NULL
+    parking_lot_id INTEGER REFERENCES parking_lots NOT NULL
 );
 
-CREATE TABLE EntranceMeasurements
+CREATE TABLE entrance_measurements
 (
     entrance_measurement_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    entrance_sensor_id INTEGER REFERENCES EntranceSensors NOT NULL,
+    entrance_sensor_id INTEGER REFERENCES entrance_sensors NOT NULL,
     measured_value INTEGER NOT NULL,
     measured_at TIMESTAMP NOT NULL DEFAULT now()
 );
@@ -31,25 +31,25 @@ CREATE TABLE EntranceMeasurements
 
 --Create and define Trigger function calc_parked_cars_total()
 
-CREATE TABLE ParkingRows
+CREATE TABLE parking_rows
 (
     parking_row_id INTEGER PRIMARY KEY,
-    parking_lot_id INTEGER REFERENCES ParkingLots NOT NULL,
+    parking_lot_id INTEGER REFERENCES parking_lots NOT NULL,
     parking_spot_amount INTEGER NOT NULL,
     curr_parked_cars INTEGER NOT NULL DEFAULT 0,
     CHECK (curr_parked_cars BETWEEN 0 AND parking_spot_amount)
 );
 
-CREATE TABLE ParkingRowSensors
+CREATE TABLE parking_row_sensors
 (
     parking_row_sensor_id INTEGER PRIMARY KEY,
-    parking_row_id INTEGER REFERENCES ParkingRows NOT NULL
+    parking_row_id INTEGER REFERENCES parking_rows NOT NULL
 );
 
-CREATE TABLE ParkingRowMeasurements
+CREATE TABLE parking_row_measurements
 (
     parking_row_measurement_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    parking_row_sensor_id INTEGER REFERENCES ParkingRowSensors NOT NULL,
+    parking_row_sensor_id INTEGER REFERENCES parking_row_sensors NOT NULL,
     measured_value INTEGER NOT NULL,
     measured_at TIMESTAMP NOT NULL DEFAULT now()
 );
