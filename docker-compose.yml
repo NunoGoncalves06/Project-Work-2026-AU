@@ -5,14 +5,15 @@ services:
       context: ./parking-app
     container_name: parking-app
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
     - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/parking-db
     - SPRING_DATASOURCE_USERNAME=postgres
-    - SPRING_DATASCOURCE_PASSWORD=password
-    - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+    - SPRING_DATASOURCE_PASSWORD=password
+    - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
 
   db:
     image: postgres:16
@@ -22,6 +23,11 @@ services:
       POSTGRES_PASSWORD: password #change and save somewhere else when we work with real data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d parking-db"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
     volumes:
       - ./db/init:/docker-entrypoint-initdb.d:ro #runs at first start
       - ./db/scripts:/scripts:ro #to test select statements

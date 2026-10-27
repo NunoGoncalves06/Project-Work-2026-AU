@@ -1,4 +1,4 @@
-package au_project_work.parking_app;
+package au_project_work.parking_app.model;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -7,7 +7,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Column;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "entrance_measurements")
@@ -18,20 +18,29 @@ public class EntranceMeasurement {
     @Column(name = "entrance_measurement_id")
     private Long entranceMeasurementId;
 
-    @Column(name = "entrance_sensor_id")
+    @Column(name = "entrance_sensor_id", nullable = false)
     private Integer entranceSensorId;
 
     @Column(name = "measured_value", nullable = false)
     private Integer measuredValue;
 
     @Column(name = "measured_at", nullable = false)
-    private LocalDateTime measuredAt;
+    private Instant measuredAt;
 
-    public Long getEntranceMeasurementID() {
+    protected EntranceMeasurement() {
+    }
+
+    public EntranceMeasurement(Integer entranceSensorId, Integer measuredValue, Instant measuredAt) {
+        this.entranceSensorId = entranceSensorId;
+        this.measuredValue = measuredValue;
+        this.measuredAt = measuredAt;
+    }
+
+    public Long getEntranceMeasurementId() {
         return entranceMeasurementId;
     }
 
-    public Integer getEntranceSensorID() {
+    public Integer getEntranceSensorId() {
         return entranceSensorId;
     }
 
@@ -39,7 +48,7 @@ public class EntranceMeasurement {
         return measuredValue;
     }
 
-    public LocalDateTime getMeasuredAt() {
+    public Instant getMeasuredAt() {
         return measuredAt;
     }
 }

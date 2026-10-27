@@ -1,3 +1,8 @@
+FROM eclipse-temurin:21-jdk AS build
+WORKDIR /app
+COPY . .
+RUN chmod +x gradlew && ./gradlew bootJar --no-daemon
+
 FROM eclipse-temurin:21-jre
-COPY build/libs/parking-app-*-SNAPSHOT.jar application.jar
+COPY --from=build /app/build/libs/parking-app-*-SNAPSHOT.jar application.jar
 ENTRYPOINT ["java", "-jar", "application.jar"]

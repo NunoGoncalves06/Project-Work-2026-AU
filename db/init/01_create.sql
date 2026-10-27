@@ -1,8 +1,9 @@
 CREATE TABLE addresses
-(address_id INTEGER PRIMARY KEY,
-city VARCHAR(50) NOT NULL,
-street VARCHAR(50) NOT NULL,
-house_nr VARCHAR(10) NOT NULL
+(
+    address_id INTEGER PRIMARY KEY,
+    city VARCHAR(50) NOT NULL,
+    street VARCHAR(50) NOT NULL,
+    house_nr VARCHAR(10) NOT NULL
 );
 
 CREATE TABLE parking_lots
@@ -11,6 +12,7 @@ CREATE TABLE parking_lots
     address_id INTEGER REFERENCES addresses NOT NULL
 );
 
+-- entrance/exit: +1 car in, -1 car out
 CREATE TABLE entrance_sensors
 (
     entrance_sensor_id INTEGER PRIMARY KEY NOT NULL,
@@ -21,51 +23,35 @@ CREATE TABLE entrance_measurements
 (
     entrance_measurement_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     entrance_sensor_id INTEGER REFERENCES entrance_sensors NOT NULL,
-    measured_value INTEGER NOT NULL,
-    measured_at TIMESTAMP NOT NULL DEFAULT now()
+    measured_value INTEGER NOT NULL CHECK (measured_value IN (1, -1)),
+    measured_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
---add to EntranceMeasurements: changed_parked_cars_total_to INTEGER
-
---CREATE INDEX ON EntranceMeasurements (entrance_sensor_id, measured_at DESC);
-
---Create and define Trigger function calc_parked_cars_total()
 
 CREATE TABLE parking_rows
 (
     parking_row_id INTEGER PRIMARY KEY,
-    parking_lot_id INTEGER REFERENCES parking_lots NOT NULL,
-    parking_spot_amount INTEGER NOT NULL,
-    curr_parked_cars INTEGER NOT NULL DEFAULT 0,
-    CHECK (curr_parked_cars BETWEEN 0 AND parking_spot_amount)
+    parking_lot_id INTEGER REFERENCES parking_lots NOT NULL
 );
 
-CREATE TABLE parking_row_sensors
+-- occupied is the current state, updated by the API on every spot sensor message
+CREATE TABLE parking_spots
 (
-    parking_row_sensor_id INTEGER PRIMARY KEY,
-    parking_row_id INTEGER REFERENCES parking_rows NOT NULL
+    parking_spot_id INTEGER PRIMARY KEY,
+    parking_row_id INTEGER REFERENCES parking_rows NOT NULL,
+    occupied BOOLEAN NOT NULL DEFAULT false,
+    updated_at TIMESTAMPTZ
 );
 
-CREATE TABLE parking_row_measurements
+CREATE TABLE parking_spot_sensors
 (
-    parking_row_measurement_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    parking_row_sensor_id INTEGER REFERENCES parking_row_sensors NOT NULL,
-    measured_value INTEGER NOT NULL,
-    measured_at TIMESTAMP NOT NULL DEFAULT now()
+    parking_spot_sensor_id INTEGER PRIMARY KEY,
+    parking_spot_id INTEGER REFERENCES parking_spots NOT NULL UNIQUE
 );
 
---add to ParkingRowMeasurements: changed_parked_cars_row_to INTEGER
-
---CREATE INDEX on ParkingRowMeasurements (parking_row_sensor_id, measured_at DESC);
-
---CREATE OR REPLACE FUNCTION calc_parked_cars_row()
---RETURNS TRIGGER AS $$
---BEGIN
--- insert logic
---END;
---$$ LANGUAGE plpgsql;
-
---CREATE TRIGGER trigger_calc_parked_cars_row
---BEFORE INSERT ON ParkingRowMeasurements
---FOR EACH ROW 
---EXECUTE FUNCTION calc_parked_cars_row();
+CREATE TABLE parking_spot_measurements
+(
+    parking_spot_measurement_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    parking_spot_sensor_id INTEGER REFERENCES parking_spot_sensors NOT NULL,
+    occupied BOOLEAN NOT NULL,
+    measured_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

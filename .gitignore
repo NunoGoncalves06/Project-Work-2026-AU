@@ -427,3 +427,10 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# JetBrains IDEs
+.idea/
+
+# local agent workspace / personal editor settings
+.superpowers/
+.vscode/
