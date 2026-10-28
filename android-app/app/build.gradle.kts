@@ -1,26 +1,7 @@
-import java.net.Inet4Address
-import java.net.NetworkInterface
-import java.util.Properties
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-}
-
-// Debug builds call the laptop's Wi-Fi IP directly (found at build time, so every Run follows a network change),
-// which works for emulator, USB and Wi-Fi without `adb reverse`. Override with `api.baseUrl=...` in
-// local.properties, e.g. http://localhost:8080/ plus `adb reverse` on a network that blocks device-to-device traffic.
-val debugApiBaseUrl: String = run {
-    val props = Properties()
-    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use(props::load)
-    props.getProperty("api.baseUrl")
-        ?: NetworkInterface.getNetworkInterfaces().toList()
-            .filter { it.isUp && !it.isLoopback && !it.isVirtual && !Regex("^(docker|br-|veth|virbr|tun|tap)").containsMatchIn(it.name) }
-            .flatMap { it.inetAddresses.toList() }
-            .firstOrNull { it is Inet4Address && it.isSiteLocalAddress }
-            ?.let { "http://${it.hostAddress}:8080/" }
-        ?: "http://localhost:8080/"
 }
 
 android {
@@ -38,8 +19,9 @@ android {
     }
 
     buildTypes {
+        // debug: run `adb reverse tcp:8080 tcp:8080` so the device's localhost:8080 hits the laptop (phone or emulator)
         debug {
-            buildConfigField("String", "API_BASE_URL", "\"$debugApiBaseUrl\"")
+            buildConfigField("String", "API_BASE_URL", "\"http://localhost:8080/\"")
         }
         release {
             buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/\"")

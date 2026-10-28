@@ -33,12 +33,11 @@ Android app (`android-app/`):
 - Open the `android-app/` folder in Android Studio and run the `app` configuration on an emulator
 - Or from the command line: `cd android-app && ./gradlew :app:installDebug` with an emulator running
 - **On first launch, tap "Allow"** on the "nearby devices" dialog. Android 17 blocks apps from reaching local-network addresses such as the dev backend unless they have this permission, which only debug builds ask for. If you tapped "Don't allow", the app shows "Can't reach server". To fix it, re-enable the permission in the app's settings, or reinstall.
-- Debug builds call your laptop's Wi-Fi IP, detected when the app is built, so phone and laptop must be on the same Wi-Fi. Every Run in Android Studio rebuilds, so it follows you to a new network; no `adb reverse` needed. This works for the emulator too
-  - network that blocks phone-to-laptop traffic (some guest/eduroam Wi-Fi)? Add `api.baseUrl=http://localhost:8080/` to `android-app/local.properties` and run `adb reverse tcp:8080 tcp:8080` after every reconnect
+- The debug app calls `http://localhost:8080/` on the phone/emulator. Forward that to your laptop with `adb reverse tcp:8080 tcp:8080` (works for emulator, USB and wireless debugging)
+  - the forward is lost every time the device reconnects or adb restarts: re-run the command then
 - App says "Can't reach the server"? Check in this order:
   1. backend up: `curl localhost:8080/parking-lots` (if not: `docker compose up -d`)
-  2. laptop changed network since the last Run: press Run again
-  3. the "nearby devices" permission is allowed (see above)
+  2. forward there: `adb reverse --list` (if empty: `adb reverse tcp:8080 tcp:8080`)
 - Always run the **debug** build. Release builds are not configured yet: there is no real server URL and no signing
 - Low on RAM? Start the emulator with `-memory 1536 -gpu swiftshader_indirect` and stop the Gradle daemons first (`./gradlew --stop`)
 - Unit tests: `cd android-app && ./gradlew :app:testDebugUnitTest`
