@@ -3,7 +3,10 @@ CREATE TABLE addresses
     address_id INTEGER PRIMARY KEY,
     city VARCHAR(50) NOT NULL,
     street VARCHAR(50) NOT NULL,
-    house_nr VARCHAR(10) NOT NULL
+    house_nr VARCHAR(10) NOT NULL,
+    -- WGS84, used by the app to sort lots by distance; nullable for lots not yet located
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION
 );
 
 CREATE TABLE parking_lots
@@ -26,6 +29,9 @@ CREATE TABLE entrance_measurements
     measured_value INTEGER NOT NULL CHECK (measured_value IN (1, -1)),
     measured_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- carsInside sums a lot's entrance events on every GET /parking-lots; without this it scans the whole history
+CREATE INDEX entrance_measurements_sensor_idx ON entrance_measurements (entrance_sensor_id);
 
 CREATE TABLE parking_rows
 (

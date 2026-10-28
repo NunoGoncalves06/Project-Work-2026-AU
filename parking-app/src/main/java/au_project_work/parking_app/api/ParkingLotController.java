@@ -59,7 +59,7 @@ public class ParkingLotController {
         int totalSpots = rows.stream().mapToInt(r -> r.spots().size()).sum();
         long freeSpots = rows.stream().mapToLong(RowDto::freeSpots).sum();
         Address a = lot.getAddress();
-        return new LotDetailDto(lot.getId(), new AddressDto(a.getStreet(), a.getHouseNr(), a.getCity()),
+        return new LotDetailDto(lot.getId(), new AddressDto(a.getStreet(), a.getHouseNr(), a.getCity(), a.getLatitude(), a.getLongitude()),
                 totalSpots, freeSpots, entranceMeasurementRepository.carsInside(lot.getId()), rows);
     }
 }

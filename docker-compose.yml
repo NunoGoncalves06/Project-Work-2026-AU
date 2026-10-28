@@ -4,6 +4,8 @@ services:
     build:
       context: ./parking-app
     container_name: parking-app
+    # come back by themselves after a Docker/laptop restart
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
@@ -17,6 +19,7 @@ services:
 
   db:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_DB: parking-db
       POSTGRES_USER: postgres

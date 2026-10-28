@@ -7,7 +7,8 @@ public final class Dtos {
     private Dtos() {
     }
 
-    public record AddressDto(String street, String houseNr, String city) {
+    // latitude/longitude are null when the lot has no coordinates yet
+    public record AddressDto(String street, String houseNr, String city, Double latitude, Double longitude) {
     }
 
     public record SpotDto(Integer id, boolean occupied) {

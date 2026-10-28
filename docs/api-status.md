@@ -19,7 +19,7 @@ Example response from `GET /parking-lots`:
 
 ```json
 [{ "id": 1,
-   "address": { "street": "Finlandsgade", "houseNr": "22", "city": "Aarhus" },
+   "address": { "street": "Finlandsgade", "houseNr": "22", "city": "Aarhus", "latitude": 56.1716, "longitude": 10.1897 },
    "totalSpots": 16, "freeSpots": 12, "carsInside": 4 }]
 ```
 
