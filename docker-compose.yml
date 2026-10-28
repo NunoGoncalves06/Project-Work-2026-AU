@@ -9,6 +9,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      mosquitto:
+        condition: service_started
     ports:
       - "8080:8080"
     environment:
@@ -34,3 +36,12 @@ services:
     volumes:
       - ./db/init:/docker-entrypoint-initdb.d:ro #runs at first start
       - ./db/scripts:/scripts:ro #to test select statements
+
+  mosquitto:
+    image: eclipse-mosquitto
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mqtt/config:/mosquitto/config #to load config to container
+      - ./mqtt/data:/mosquitto/data #file used to store data
+      - ./mqtt/log:/mosquitto/log 
