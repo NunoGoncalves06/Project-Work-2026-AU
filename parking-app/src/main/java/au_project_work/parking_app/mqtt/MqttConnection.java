@@ -19,7 +19,7 @@ public class MqttConnection {
 
     @Bean
     public MessageProducer inbound() {
-        MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter("tcp://localhost:1883",
+        MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter("tcp://mosquitto:1883",
                 "testClient",
                 "carcounter/#");
         adapter.setCompletionTimeout(5000);
