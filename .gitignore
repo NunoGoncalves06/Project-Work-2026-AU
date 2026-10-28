@@ -434,3 +434,7 @@ FodyWeavers.xsd
 # local agent workspace / personal editor settings
 .superpowers/
 .vscode/
+
+# Android debug source set (the [Dd]ebug/ rule above is for Visual Studio)
+!android-app/app/src/debug/
+!android-app/app/src/release/

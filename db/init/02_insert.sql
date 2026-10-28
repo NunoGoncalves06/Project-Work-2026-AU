@@ -1,5 +1,5 @@
-INSERT INTO addresses(address_id, city, street, house_nr)
-VALUES(1, 'Aarhus', 'Finlandsgade', '22');
+INSERT INTO addresses(address_id, city, street, house_nr, latitude, longitude)
+VALUES(1, 'Aarhus', 'Finlandsgade', '22', 56.1716, 10.1897);
 
 INSERT INTO parking_lots(parking_lot_id, address_id)
 VALUES(1, 1);

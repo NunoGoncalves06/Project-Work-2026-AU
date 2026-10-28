@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- debug only: the local backend runs on plain http at whatever IP the laptop has on the current network.
+     Release builds use the main config, which allows no cleartext at all. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

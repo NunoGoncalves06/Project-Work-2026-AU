@@ -22,6 +22,12 @@ public class Address {
     @Column(name = "house_nr", nullable = false)
     private String houseNr;
 
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     public Integer getId() {
         return id;
     }
@@ -36,5 +42,13 @@ public class Address {
 
     public String getHouseNr() {
         return houseNr;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
     }
 }

@@ -47,6 +47,7 @@ class ParkingAppApplicationTests {
                 .andExpect(jsonPath("$[0].id").value(1))
                 .andExpect(jsonPath("$[0].address.street").value("Finlandsgade"))
                 .andExpect(jsonPath("$[0].address.houseNr").value("22"))
+                .andExpect(jsonPath("$[0].address.latitude").value(56.1716))
                 .andExpect(jsonPath("$[0].address.city").value("Aarhus"))
                 .andExpect(jsonPath("$[0].totalSpots").value(16))
                 .andExpect(jsonPath("$[0].freeSpots").value(12))
