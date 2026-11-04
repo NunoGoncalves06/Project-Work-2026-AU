@@ -1,27 +1,55 @@
 package au_project_work.parking_app.service;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
 import java.time.Instant;
 
 import au_project_work.parking_app.model.ParkingSpotMeasurement;
+import au_project_work.parking_app.model.ParkingSpotSensor;
 import au_project_work.parking_app.repository.ParkingSpotMeasurementRepository;
+import au_project_work.parking_app.repository.ParkingSpotSensorRepository;
 
+/**
+ * The one place a spot sensor reading is recorded. Both ways in (POST
+ * /parking-spot-measurements and the MQTT listener) go through here, so they
+ * cannot drift apart again: the MQTT path used to only append history and never
+ * touch parking_spots.occupied, which left the app showing stale numbers however
+ * often it refreshed.
+ */
 @Service
 public class ParkingSpotMeasurementService {
 
     private final ParkingSpotMeasurementRepository parkingSpotMeasurementRepository;
+    private final ParkingSpotSensorRepository parkingSpotSensorRepository;
 
-    public ParkingSpotMeasurementService(ParkingSpotMeasurementRepository parkingSpotMeasurementRepository) {
+    public ParkingSpotMeasurementService(ParkingSpotMeasurementRepository parkingSpotMeasurementRepository,
+            ParkingSpotSensorRepository parkingSpotSensorRepository) {
         this.parkingSpotMeasurementRepository = parkingSpotMeasurementRepository;
+        this.parkingSpotSensorRepository = parkingSpotSensorRepository;
     }
 
-    // just to test - we should probably use a dto later on
-    public void SaveParkingSpotMeasurement(int device_id, Boolean occupied) {
-        Instant measured_at = Instant.now();
-        ParkingSpotMeasurement parkingSpotMeasurement = new ParkingSpotMeasurement(device_id,
-                occupied,
-                measured_at);
-        // save measurement to database
-        parkingSpotMeasurementRepository.save(parkingSpotMeasurement);
+    /**
+     * Records one reading: updates the spot's current state and appends the history
+     * row, both in the same transaction.
+     *
+     * @throws ResponseStatusException 404 if no sensor has that id
+     */
+    @Transactional
+    public void record(Integer parkingSpotSensorId, Boolean occupied) {
+        if (parkingSpotSensorId == null || occupied == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "parkingSpotSensorId and occupied are required");
+        }
+        ParkingSpotSensor sensor = parkingSpotSensorRepository.findById(parkingSpotSensorId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Unknown parking spot sensor " + parkingSpotSensorId));
+        Instant now = Instant.now();
+        // managed entity: the update is flushed at commit, in the same transaction as
+        // the history row
+        sensor.getParkingSpot().updateOccupied(occupied, now);
+        parkingSpotMeasurementRepository.save(new ParkingSpotMeasurement(sensor.getId(), occupied, now));
     }
 }
