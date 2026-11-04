@@ -35,4 +35,20 @@ public class ParkingSpotMeasurement {
         this.occupied = occupied;
         this.measuredAt = measuredAt;
     }
+
+    public Long getParkingSpotMeasurementId() {
+        return id;
+    }
+
+    public Integer getParkingSpotSensorId() {
+        return parkingSpotSensorId;
+    }
+
+    public Boolean getOccupied() {
+        return occupied;
+    }
+
+    public Instant getMeasuredAt() {
+        return measuredAt;
+    }
 }

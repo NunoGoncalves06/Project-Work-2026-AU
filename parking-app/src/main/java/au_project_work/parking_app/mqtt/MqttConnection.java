@@ -12,6 +12,11 @@ import org.springframework.messaging.MessageChannel;
 @Configuration
 @EnableIntegration
 public class MqttConnection {
+
+    // to do: have two channels for incoming entrance measurements and parking spot
+    // measurements
+    // listener classes then listen to the channel they are responsible for
+
     @Bean
     public MessageChannel mqttInputChannel() {
         return new DirectChannel();
@@ -21,7 +26,7 @@ public class MqttConnection {
     public MessageProducer inbound() {
         MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter("tcp://mosquitto:1883",
                 "testClient",
-                "carcounter/#");
+                "carcounter/spots"); // just to test - rework s. above
         adapter.setCompletionTimeout(5000);
         adapter.setConverter(new DefaultPahoMessageConverter());
         adapter.setQos(1);
