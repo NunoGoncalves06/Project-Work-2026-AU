@@ -31,14 +31,14 @@ class MainActivity : ComponentActivity() {
                 NavHost(nav, startDestination = "lots") {
                     composable("lots") {
                         LotListScreen(
-                            viewModel(factory = viewModelFactory { initializer { LotListViewModel(container.repository, container.store) } }),
+                            viewModel(factory = viewModelFactory { initializer { LotListViewModel(container.repository, container.store, container.updates) } }),
                             onLotClick = { id -> nav.navigate("lots/$id") { launchSingleTop = true } },
                         )
                     }
                     composable("lots/{id}", arguments = listOf(navArgument("id") { type = NavType.IntType })) { entry ->
                         val id = entry.arguments!!.getInt("id")
                         LotDetailScreen(
-                            viewModel(factory = viewModelFactory { initializer { LotDetailViewModel(container.repository, container.store, id) } }),
+                            viewModel(factory = viewModelFactory { initializer { LotDetailViewModel(container.repository, container.store, id, container.updates) } }),
                             onBack = { nav.popBackStack() },
                         )
                     }

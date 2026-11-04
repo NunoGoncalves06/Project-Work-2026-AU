@@ -24,6 +24,11 @@ REST API:
 | POST | `/parking-spot-measurements` | `{"parkingSpotSensorId": 3, "occupied": true}` | spot sensor |
 | GET | `/entrance-measurements/all` | | entrance history |
 | GET | `/entrance-measurements/sensor/{id}` | | entrance history of one sensor |
+| GET | `/parking-lots/stream` | | server-sent events: `changed` when the data changed, `keep-alive` otherwise. Carries no data; the app refetches the GETs above when it arrives |
+
+Watch the stream from a terminal with `curl -N localhost:8080/parking-lots/stream`.
+
+**How the app stays up to date.** It keeps one `/parking-lots/stream` connection open and refetches when the server says `changed`, so an update shows up in about a second without the app asking over and over. The server notices a change in one of two ways: directly, when a measurement comes in through the REST endpoint or MQTT, or by re-reading a small fingerprint of the data every 2 s, which also catches edits made straight in the database. That check runs once for the whole server, not once per app, and only while at least one app is connected. Each app still refetches on its own every 60 s as a backstop, dropping to 5 s whenever the stream is down.
 
 Errors: 400 = missing or invalid field, 404 = unknown id.
 
@@ -35,6 +40,13 @@ Android app (`android-app/`):
 - **On first launch, tap "Allow"** on the "nearby devices" dialog. Android 17 blocks apps from reaching local-network addresses such as the dev backend unless they have this permission, which only debug builds ask for. If you tapped "Don't allow", the app shows "Can't reach server". To fix it, re-enable the permission in the app's settings, or reinstall.
 - The debug app calls `http://localhost:8080/` on the phone/emulator. Forward that to your laptop with `adb reverse tcp:8080 tcp:8080` (works for emulator, USB and wireless debugging)
   - the forward is lost every time the device reconnects or adb restarts: re-run the command then
+- **Backend on a teammate's machine instead?** Point the app straight at it, no `adb reverse` needed. Both machines have to be on the same wifi, and the teammate has to run `docker compose up`:
+
+  ```
+  cd android-app && ./gradlew :app:installDebug -PapiBaseUrl=http://192.168.178.20:8080/
+  ```
+
+  Replace the IP with the one of the machine running Docker. To not retype it every time, put `apiBaseUrl=http://192.168.178.20:8080/` in your own `~/.gradle/gradle.properties` (never committed). Debug builds allow plain http to any host for exactly this; release builds still refuse cleartext.
 - App says "Can't reach the server"? Check in this order:
   1. backend up: `curl localhost:8080/parking-lots` (if not: `docker compose up -d`)
   2. forward there: `adb reverse --list` (if empty: `adb reverse tcp:8080 tcp:8080`)

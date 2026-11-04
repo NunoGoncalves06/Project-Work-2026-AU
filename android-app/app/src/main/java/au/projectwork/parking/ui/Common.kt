@@ -29,6 +29,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
 
+/**
+ * How often to refetch on our own. While the server's update stream is up it only has to catch
+ * what the fingerprint check cannot see; with the stream down it is the only thing keeping the
+ * screen fresh, and matches the 5 s the error card promises.
+ */
+fun pollPeriodMs(streamConnected: Boolean): Long = if (streamConnected) 60_000 else 5_000
+
 sealed interface UiState<out T> {
     data object Loading : UiState<Nothing>
 
@@ -40,10 +47,13 @@ sealed interface UiState<out T> {
 /**
  * Fetches now, then every [periodMs], and again whenever [refreshRequests] emits.
  * [cached] is shown before the first fetch; [onFetched] gets every successful result (to cache it).
+ *
+ * [periodMs] is read before each wait, so a caller can poll slowly while the server pushes
+ * updates and drop back to a short interval when that stream is down.
  */
 fun <T> pollingState(
     refreshRequests: Flow<Unit>,
-    periodMs: Long = 5_000,
+    periodMs: () -> Long = { 5_000 },
     clock: () -> Long = System::currentTimeMillis,
     cached: suspend () -> Pair<T, Long>? = { null },
     onFetched: suspend (T, Long) -> Unit = { _, _ -> },
@@ -74,7 +84,7 @@ fun <T> pollingState(
         launch { refreshRequests.collect { load() } }
         while (true) {
             load()
-            delay(periodMs)
+            delay(periodMs())
         }
     }
 }

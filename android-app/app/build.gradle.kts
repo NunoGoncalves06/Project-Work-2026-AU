@@ -19,9 +19,18 @@ android {
     }
 
     buildTypes {
-        // debug: run `adb reverse tcp:8080 tcp:8080` so the device's localhost:8080 hits the laptop (phone or emulator)
+        // debug default: run `adb reverse tcp:8080 tcp:8080` so the device's localhost:8080 hits the laptop (phone or emulator).
+        // Backend on another machine on the same wifi? Point the app straight at it, no adb reverse needed:
+        //   ./gradlew :app:installDebug -PapiBaseUrl=http://192.168.178.20:8080/
+        // To not retype it, put `apiBaseUrl=http://192.168.178.20:8080/` in your own
+        // ~/.gradle/gradle.properties (never committed, applies to every build).
         debug {
-            buildConfigField("String", "API_BASE_URL", "\"http://localhost:8080/\"")
+            val apiBaseUrl = (project.findProperty("apiBaseUrl") as String?)
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { if (it.endsWith("/")) it else "$it/" }
+                ?: "http://localhost:8080/"
+            buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         }
         release {
             buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080/\"")
@@ -55,6 +64,8 @@ dependencies {
     implementation(libs.retrofit.kotlinx.serialization)
     // retrofit only exposes okhttp at runtime; we use MediaType / ResponseBody at compile time
     implementation(libs.okhttp)
+    // server-sent events: the backend tells us when to refetch, instead of us asking every few seconds
+    implementation(libs.okhttp.sse)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.datastore.preferences)
 

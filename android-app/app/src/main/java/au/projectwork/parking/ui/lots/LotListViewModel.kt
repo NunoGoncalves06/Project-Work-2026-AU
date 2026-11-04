@@ -5,8 +5,11 @@ import androidx.lifecycle.viewModelScope
 import au.projectwork.parking.data.LotDetail
 import au.projectwork.parking.data.LotStore
 import au.projectwork.parking.data.LotSummary
+import au.projectwork.parking.data.NoUpdateStream
 import au.projectwork.parking.data.ParkingRepository
+import au.projectwork.parking.data.UpdateStream
 import au.projectwork.parking.ui.UiState
+import au.projectwork.parking.ui.pollPeriodMs
 import au.projectwork.parking.ui.pollingState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -14,12 +17,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class LotListViewModel(
     private val repository: ParkingRepository,
     private val store: LotStore,
+    private val updates: UpdateStream = NoUpdateStream,
     clock: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
 
@@ -42,7 +47,9 @@ class LotListViewModel(
     // WhileSubscribed: polling stops 5 s after the screen stops collecting (app in background)
     val state: StateFlow<UiState<List<LotSummary>>> =
         pollingState(
-            refreshRequests,
+            // the server's push and the user's pull mean the same thing: fetch now
+            merge(refreshRequests, updates.changes),
+            periodMs = { pollPeriodMs(updates.connected) },
             clock = clock,
             cached = { store.loadLots() },
             // only when the numbers changed: no disk write every 5 s. The cached time can then be older than the
