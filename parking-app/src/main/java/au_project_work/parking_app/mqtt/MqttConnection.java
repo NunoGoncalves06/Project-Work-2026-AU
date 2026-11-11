@@ -4,7 +4,6 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.integration.annotation.Router;
-import org.springframework.integration.annotation.Router;
 import org.springframework.integration.channel.DirectChannel;
 import org.springframework.integration.config.EnableIntegration;
 import org.springframework.integration.core.MessageProducer;
@@ -38,8 +37,6 @@ public class MqttConnection {
         return new DirectChannel();
     }
 
-    // to do: add default channel
-
     @Bean
     public MqttPahoClientFactory mqttClientFactory() {
         MqttConnectOptions options = new MqttConnectOptions();
@@ -48,7 +45,9 @@ public class MqttConnection {
         // adapter
         // disconnected for good and sensor messages stop arriving silently
         options.setAutomaticReconnect(true);
-        options.setCleanSession(true);
+        // the broker keeps this client's subscriptions and queues QoS 1 messages while the
+        // backend is down (restart, rebuild), and delivers them when it reconnects
+        options.setCleanSession(false);
         DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
         factory.setConnectionOptions(options);
         return factory;
@@ -67,7 +66,9 @@ public class MqttConnection {
     @Bean
     public MessageProducer inbound() {
         // adapter writes to the shared channel
-        MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter("testClient",
+        // the broker finds the queued messages by this id: keep it fixed, and unique per broker
+        // (two backends with the same id on one broker would keep kicking each other off)
+        MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter("parking-backend",
                 mqttClientFactory(),
                 "carcounter/#"); // handle other messages?
         adapter.setCompletionTimeout(5000);
