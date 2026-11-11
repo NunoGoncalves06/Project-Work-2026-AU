@@ -1,0 +1,6 @@
+# Files copied to the Linux server must keep Linux line endings, even in a Windows checkout:
+# a trailing \r would end up in values such as Mosquitto's password_file path.
+Caddyfile text eol=lf
+docker-compose*.yml text eol=lf
+*.conf text eol=lf
+.env.example text eol=lf
