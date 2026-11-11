@@ -14,20 +14,19 @@ import tools.jackson.databind.ObjectMapper; //to extract message payload
 import tools.jackson.databind.JsonNode; //to extract message payload
 
 @Configuration
-public class MqttMessageListener {
-
-    private static final Logger log = LoggerFactory.getLogger(MqttMessageListener.class);
+public class SpotMeasurementListener {
+    private static final Logger log = LoggerFactory.getLogger(SpotMeasurementListener.class);
 
     private final ParkingSpotMeasurementService parkingSpotMeasurementService;
     private final ObjectMapper objectMapper = new ObjectMapper(); // to extract data from payload
 
-    public MqttMessageListener(ParkingSpotMeasurementService service) {
+    public SpotMeasurementListener(ParkingSpotMeasurementService service) {
         this.parkingSpotMeasurementService = service;
     }
 
     @Bean
     @ServiceActivator(inputChannel = "mqttInputChannel")
-    public MessageHandler handler() {
+    public MessageHandler spotMessageHandler() {
 
         return new MessageHandler() {
 
@@ -60,4 +59,5 @@ public class MqttMessageListener {
             }
         };
     }
+
 }

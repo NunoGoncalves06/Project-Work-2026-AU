@@ -42,7 +42,8 @@ public class EntranceMeasurementController {
   public void create(@RequestBody EntranceMeasurementRequest request) {
     Integer value = request.measuredValue();
     if (request.entranceSensorId() == null || value == null || (value != 1 && value != -1)) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "entranceSensorId and measuredValue (1 or -1) are required");
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+          "entranceSensorId and measuredValue (1 or -1) are required");
     }
     if (!entranceSensorRepository.existsById(request.entranceSensorId())) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown entrance sensor " + request.entranceSensorId());
