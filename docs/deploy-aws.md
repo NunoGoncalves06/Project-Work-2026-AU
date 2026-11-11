@@ -86,10 +86,10 @@ docker compose -f docker-compose.prod.yml exec mosquitto mosquitto_pub -u sensor
   -t carcounter/spots -m '{"device_id":9,"occupied":true}'
 ```
 
-The phone app: build it against the server, no `adb reverse` needed.
+The phone app talks to `https://au-parking.duckdns.org/` by default (`android-app/app/build.gradle.kts`), so a plain build uses the server, no `adb reverse` needed. If `DOMAIN` ever changes, change that default too.
 
 ```bash
-cd android-app && ./gradlew :app:installDebug -PapiBaseUrl=https://<DOMAIN>/
+cd android-app && ./gradlew :app:installDebug
 ```
 
 ## Good to know
