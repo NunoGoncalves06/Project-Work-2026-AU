@@ -46,11 +46,11 @@ public class EntranceMeasurementListener {
             private void handle(String payload) {
                 JsonNode json = objectMapper.readTree(payload);
                 JsonNode entranceSensorId = json.get("device_id");
-                JsonNode measuredValue = json.get("measured_value");
+                JsonNode measuredValue = json.get("dir");
                 if (entranceSensorId == null || !entranceSensorId.isIntegralNumber() || measuredValue == null
                         || !measuredValue.isIntegralNumber()) {
                     throw new IllegalArgumentException(
-                            "expected an integer entrance_sensor_id and an integer measured_value");
+                            "expected an integer entrance_sensor_id and an integer dir");
                 }
                 entranceMeasurementService.record(entranceSensorId.asInt(), measuredValue.asInt());
             }
