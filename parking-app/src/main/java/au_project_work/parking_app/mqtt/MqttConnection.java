@@ -53,6 +53,16 @@ public class MqttConnection {
         return factory;
     }
 
+    // maps incoming messages to the listener channels
+    @ServiceActivator(inputChannel = "mqttInputChannel")
+    @Bean
+    public HeaderValueRouter router() {
+        HeaderValueRouter router = new HeaderValueRouter(MqttHeaders.RECEIVED_TOPIC);
+        router.setChannelMapping("carcounter/spots", "spotMeasurementChannel");
+        router.setChannelMapping("carcounter/entrance", "entranceMeasurementChannel");
+        return router;
+    }
+
     @Bean
     public MessageProducer inbound() {
         // adapter writes to the shared channel
@@ -64,15 +74,5 @@ public class MqttConnection {
         adapter.setQos(1);
         adapter.setOutputChannel(mqttInputChannel());
         return adapter;
-    }
-
-    // maps incoming messages to the listener channels
-    @ServiceActivator(inputChannel = "mqttInputChannel")
-    @Bean
-    public HeaderValueRouter router() {
-        HeaderValueRouter router = new HeaderValueRouter(MqttHeaders.RECEIVED_TOPIC);
-        router.setChannelMapping("carcounter/spots", "spotMeasurementChannel");
-        router.setChannelMapping("carcounter/entrance", "entranceMeasurementChannel");
-        return router;
     }
 }

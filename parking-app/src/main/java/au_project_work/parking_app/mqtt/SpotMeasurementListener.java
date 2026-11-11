@@ -25,7 +25,7 @@ public class SpotMeasurementListener {
     }
 
     @Bean
-    @ServiceActivator(inputChannel = "mqttInputChannel")
+    @ServiceActivator(inputChannel = "spotMeasurementChannel")
     public MessageHandler spotMessageHandler() {
 
         return new MessageHandler() {
