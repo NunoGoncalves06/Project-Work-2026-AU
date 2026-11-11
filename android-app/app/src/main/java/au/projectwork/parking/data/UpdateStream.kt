@@ -1,5 +1,8 @@
 package au.projectwork.parking.data
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
@@ -7,6 +10,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.shareIn
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -35,7 +40,11 @@ object NoUpdateStream : UpdateStream {
     override val connected: Boolean = false
 }
 
-class SseUpdateStream(baseUrl: String, client: OkHttpClient = defaultClient()) : UpdateStream {
+class SseUpdateStream(
+    baseUrl: String,
+    client: OkHttpClient = defaultClient(),
+    scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+) : UpdateStream {
 
     private val request = Request.Builder().url(baseUrl.trimEnd('/') + STREAM_PATH).build()
     private val factory = EventSources.createFactory(client)
@@ -59,6 +68,9 @@ class SseUpdateStream(baseUrl: String, client: OkHttpClient = defaultClient()) :
         // a slow collector must not stall the reader thread; a missed tick costs nothing
         // because every event means the same thing: refetch
         .buffer(1, BufferOverflow.DROP_OLDEST)
+        // one connection however many screens listen: with one each, a screen closing its own
+        // connection flipped [connected] off under the other, which then polled every 5 s
+        .shareIn(scope, SharingStarted.WhileSubscribed())
 
     /** Emits true per change event, false on connect; completes when the stream drops. */
     private fun connect(): Flow<Boolean> = callbackFlow {
@@ -99,9 +111,9 @@ class SseUpdateStream(baseUrl: String, client: OkHttpClient = defaultClient()) :
         const val MAX_BACKOFF_MS = 30_000L
 
         fun defaultClient() = OkHttpClient.Builder()
-            // the stream is idle by design between changes: no read timeout, the server's
-            // keep-alive and our own reconnect handle a dead connection
-            .readTimeout(0, TimeUnit.MILLISECONDS)
+            // the server sends at least a keep-alive every ~30 s, so 45 s of silence means the
+            // connection died quietly (wifi switch, laptop asleep): fail and reconnect
+            .readTimeout(45, TimeUnit.SECONDS)
             .connectTimeout(10, TimeUnit.SECONDS)
             .retryOnConnectionFailure(true)
             .build()

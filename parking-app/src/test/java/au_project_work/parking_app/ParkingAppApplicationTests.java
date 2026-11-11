@@ -1,5 +1,6 @@
 package au_project_work.parking_app;
 
+import au_project_work.parking_app.repository.EntranceMeasurementRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -7,10 +8,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.integration.mqtt.support.MqttHeaders;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.integration.support.MessageBuilder;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -22,6 +25,12 @@ class ParkingAppApplicationTests {
 
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @Autowired
+    private EntranceMeasurementRepository entranceMeasurementRepository;
 
     @Autowired
     @Qualifier("mqttInputChannel")
@@ -100,6 +109,25 @@ class ParkingAppApplicationTests {
 
         publish("carcounter/entrance", "{\"device_id\": 1, \"measured_value\": -1}");
         mvc.perform(get("/parking-lots/1")).andExpect(jsonPath("$.carsInside").value(4));
+    }
+
+    @Test
+    void carsInsideResyncsToOccupiedSpotsAt4am() {
+        // seed: spots 1-4 occupied (with history from October), so the 04:00 start value is 4.
+        // A stray +1 from 2 days ago is drift that the resync must ignore
+        Long drift = jdbc.queryForObject("""
+                INSERT INTO entrance_measurements (entrance_sensor_id, measured_value, measured_at)
+                VALUES (1, 1, now() - interval '2 days') RETURNING entrance_measurement_id
+                """, Long.class);
+        try {
+            assertEquals(4, entranceMeasurementRepository.carsInsideResyncedAt4am(1));
+            publish("carcounter/entrance", "{\"device_id\": 1, \"measured_value\": 1}");
+            assertEquals(5, entranceMeasurementRepository.carsInsideResyncedAt4am(1));
+            publish("carcounter/entrance", "{\"device_id\": 1, \"measured_value\": -1}");
+            assertEquals(4, entranceMeasurementRepository.carsInsideResyncedAt4am(1));
+        } finally {
+            jdbc.update("DELETE FROM entrance_measurements WHERE entrance_measurement_id = ?", drift);
+        }
     }
 
     @Test
