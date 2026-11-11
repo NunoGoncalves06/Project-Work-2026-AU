@@ -2,9 +2,7 @@ package au_project_work.parking_app.service;
 
 import java.time.Instant;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.transaction.annotation.Transactional;
 
 import au_project_work.parking_app.model.EntranceMeasurement;
@@ -27,17 +25,15 @@ public class EntranceMeasurementService {
     /**
      * Records one reading
      *
-     * @throws ResponseStatusException 404 if no sensor has that id
+     * @throws IllegalArgumentException on a missing or invalid value, or an unknown sensor id
      */
     @Transactional
     public void record(Integer entranceSensorId, Integer measuredValue) {
-        if (entranceSensorId == null || measuredValue == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "entranceSensorId, measuredValue and measuredAt are required.");
+        if (entranceSensorId == null || measuredValue == null || (measuredValue != 1 && measuredValue != -1)) {
+            throw new IllegalArgumentException("entranceSensorId and measuredValue (1 or -1) are required");
         }
         EntranceSensor sensor = entranceSensorRepository.findById(entranceSensorId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "Unknown entrance sensor " + entranceSensorId));
+                .orElseThrow(() -> new IllegalArgumentException("Unknown entrance sensor " + entranceSensorId));
         Instant now = Instant.now();
         // here we only need to save - amount of currently parked cards is determined on
         // request

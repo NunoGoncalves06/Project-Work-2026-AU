@@ -53,8 +53,8 @@ public class SpotMeasurementListener {
                     throw new IllegalArgumentException(
                             "expected an integer device_id and a boolean occupied");
                 }
-                // same path as POST /parking-spot-measurements: updates the spot's current
-                // state as well as the history, so the app sees the change
+                // updates the spot's current state as well as the history, so the app sees
+                // the change
                 parkingSpotMeasurementService.record(deviceId.asInt(), occupied.asBoolean());
             }
         };

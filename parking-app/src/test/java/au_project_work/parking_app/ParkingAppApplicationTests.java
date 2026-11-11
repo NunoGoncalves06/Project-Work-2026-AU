@@ -1,16 +1,20 @@
 package au_project_work.parking_app;
 
+import au_project_work.parking_app.repository.EntranceMeasurementRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
+import org.springframework.integration.mqtt.support.MqttHeaders;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.integration.support.MessageBuilder;
+import org.springframework.messaging.MessageChannel;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -22,8 +26,20 @@ class ParkingAppApplicationTests {
     @Autowired
     private MockMvc mvc;
 
-    private ResultActions postJson(String url, String body) throws Exception {
-        return mvc.perform(post(url).contentType(MediaType.APPLICATION_JSON).content(body));
+    @Autowired
+    private JdbcTemplate jdbc;
+
+    @Autowired
+    private EntranceMeasurementRepository entranceMeasurementRepository;
+
+    @Autowired
+    @Qualifier("mqttInputChannel")
+    private MessageChannel mqttInputChannel;
+
+    // what the MQTT adapter does with a broker message: router, listener and service all run
+    private void publish(String topic, String payload) {
+        mqttInputChannel.send(MessageBuilder.withPayload(payload)
+                .setHeader(MqttHeaders.RECEIVED_TOPIC, topic).build());
     }
 
     @Test
@@ -75,45 +91,55 @@ class ParkingAppApplicationTests {
     }
 
     @Test
-    void spotMeasurementUpdatesSpotState() throws Exception {
-        postJson("/parking-spot-measurements", "{\"parkingSpotSensorId\": 16, \"occupied\": true}")
-                .andExpect(status().isCreated());
+    void spotMessageUpdatesSpotState() throws Exception {
+        publish("carcounter/spots", "{\"device_id\": 16, \"occupied\": true}");
         mvc.perform(get("/parking-lots/1"))
                 .andExpect(jsonPath("$.rows[3].spots[3].occupied").value(true))
                 .andExpect(jsonPath("$.freeSpots").value(11));
 
-        postJson("/parking-spot-measurements", "{\"parkingSpotSensorId\": 16, \"occupied\": false}")
-                .andExpect(status().isCreated());
+        publish("carcounter/spots", "{\"device_id\": 16, \"occupied\": false}");
         mvc.perform(get("/parking-lots/1"))
                 .andExpect(jsonPath("$.freeSpots").value(12));
     }
 
     @Test
-    void entranceMeasurementChangesCarsInside() throws Exception {
-        postJson("/entrance-measurements", "{\"entranceSensorId\": 1, \"measuredValue\": 1}")
-                .andExpect(status().isCreated());
+    void entranceMessageChangesCarsInside() throws Exception {
+        publish("carcounter/entrance", "{\"device_id\": 1, \"measured_value\": 1}");
         mvc.perform(get("/parking-lots/1")).andExpect(jsonPath("$.carsInside").value(5));
 
-        postJson("/entrance-measurements", "{\"entranceSensorId\": 1, \"measuredValue\": -1}")
-                .andExpect(status().isCreated());
+        publish("carcounter/entrance", "{\"device_id\": 1, \"measured_value\": -1}");
         mvc.perform(get("/parking-lots/1")).andExpect(jsonPath("$.carsInside").value(4));
     }
 
     @Test
-    void invalidMeasurementsAre400() throws Exception {
-        postJson("/entrance-measurements", "{\"entranceSensorId\": 1, \"measuredValue\": 2}")
-                .andExpect(status().isBadRequest());
-        postJson("/entrance-measurements", "{\"entranceSensorId\": 1}")
-                .andExpect(status().isBadRequest());
-        postJson("/parking-spot-measurements", "{\"parkingSpotSensorId\": 1}")
-                .andExpect(status().isBadRequest());
+    void carsInsideResyncsToOccupiedSpotsAt4am() {
+        // seed: spots 1-4 occupied (with history from October), so the 04:00 start value is 4.
+        // A stray +1 from 2 days ago is drift that the resync must ignore
+        Long drift = jdbc.queryForObject("""
+                INSERT INTO entrance_measurements (entrance_sensor_id, measured_value, measured_at)
+                VALUES (1, 1, now() - interval '2 days') RETURNING entrance_measurement_id
+                """, Long.class);
+        try {
+            assertEquals(4, entranceMeasurementRepository.carsInsideResyncedAt4am(1));
+            publish("carcounter/entrance", "{\"device_id\": 1, \"measured_value\": 1}");
+            assertEquals(5, entranceMeasurementRepository.carsInsideResyncedAt4am(1));
+            publish("carcounter/entrance", "{\"device_id\": 1, \"measured_value\": -1}");
+            assertEquals(4, entranceMeasurementRepository.carsInsideResyncedAt4am(1));
+        } finally {
+            jdbc.update("DELETE FROM entrance_measurements WHERE entrance_measurement_id = ?", drift);
+        }
     }
 
     @Test
-    void unknownSensorsAre404() throws Exception {
-        postJson("/entrance-measurements", "{\"entranceSensorId\": 99, \"measuredValue\": 1}")
-                .andExpect(status().isNotFound());
-        postJson("/parking-spot-measurements", "{\"parkingSpotSensorId\": 99, \"occupied\": true}")
-                .andExpect(status().isNotFound());
+    void badOrUnknownSensorMessagesAreSkipped() throws Exception {
+        publish("carcounter/spots", "{\"device_id\": 1}");
+        publish("carcounter/spots", "{\"device_id\": 99, \"occupied\": true}");
+        publish("carcounter/spots", "not json");
+        publish("carcounter/entrance", "{\"device_id\": 1}");
+        publish("carcounter/entrance", "{\"device_id\": 1, \"measured_value\": 5}");
+        publish("carcounter/entrance", "{\"device_id\": 99, \"measured_value\": 1}");
+        mvc.perform(get("/parking-lots/1"))
+                .andExpect(jsonPath("$.freeSpots").value(12))
+                .andExpect(jsonPath("$.carsInside").value(4));
     }
 }

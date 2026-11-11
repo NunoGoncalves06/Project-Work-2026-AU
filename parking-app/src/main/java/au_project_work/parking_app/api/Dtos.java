@@ -23,10 +23,4 @@ public final class Dtos {
     public record LotDetailDto(Integer id, AddressDto address, int totalSpots, long freeSpots, long carsInside,
                                List<RowDto> rows) {
     }
-
-    public record EntranceMeasurementRequest(Integer entranceSensorId, Integer measuredValue) {
-    }
-
-    public record ParkingSpotMeasurementRequest(Integer parkingSpotSensorId, Boolean occupied) {
-    }
 }
