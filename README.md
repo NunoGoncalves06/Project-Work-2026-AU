@@ -32,7 +32,7 @@ Sensor readings come in only over MQTT (broker: the `mosquitto` container), not 
 | Topic | Payload |
 |---|---|
 | `carcounter/spots` | `{"device_id": 3, "occupied": true}` (`device_id` = parking spot sensor id) |
-| `carcounter/entrance` | `{"device_id": 1, "measured_value": 1}` (1 = in, -1 = out) |
+| `carcounter/entrance` | `{"device_id": 1, "dir": 1}` (1 = in, -1 = out) |
 
 Fake a sensor reading while the stack runs: `docker compose exec mosquitto mosquitto_pub -t carcounter/spots -m '{"device_id": 16, "occupied": true}'`. A message with a missing field or an unknown sensor is logged and skipped.
 

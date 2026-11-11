@@ -104,10 +104,10 @@ class ParkingAppApplicationTests {
 
     @Test
     void entranceMessageChangesCarsInside() throws Exception {
-        publish("carcounter/entrance", "{\"device_id\": 1, \"measured_value\": 1}");
+        publish("carcounter/entrance", "{\"device_id\": 1, \"dir\": 1}");
         mvc.perform(get("/parking-lots/1")).andExpect(jsonPath("$.carsInside").value(5));
 
-        publish("carcounter/entrance", "{\"device_id\": 1, \"measured_value\": -1}");
+        publish("carcounter/entrance", "{\"device_id\": 1, \"dir\": -1}");
         mvc.perform(get("/parking-lots/1")).andExpect(jsonPath("$.carsInside").value(4));
     }
 
@@ -121,9 +121,9 @@ class ParkingAppApplicationTests {
                 """, Long.class);
         try {
             assertEquals(4, entranceMeasurementRepository.carsInsideResyncedAt4am(1));
-            publish("carcounter/entrance", "{\"device_id\": 1, \"measured_value\": 1}");
+            publish("carcounter/entrance", "{\"device_id\": 1, \"dir\": 1}");
             assertEquals(5, entranceMeasurementRepository.carsInsideResyncedAt4am(1));
-            publish("carcounter/entrance", "{\"device_id\": 1, \"measured_value\": -1}");
+            publish("carcounter/entrance", "{\"device_id\": 1, \"dir\": -1}");
             assertEquals(4, entranceMeasurementRepository.carsInsideResyncedAt4am(1));
         } finally {
             jdbc.update("DELETE FROM entrance_measurements WHERE entrance_measurement_id = ?", drift);
@@ -136,8 +136,8 @@ class ParkingAppApplicationTests {
         publish("carcounter/spots", "{\"device_id\": 99, \"occupied\": true}");
         publish("carcounter/spots", "not json");
         publish("carcounter/entrance", "{\"device_id\": 1}");
-        publish("carcounter/entrance", "{\"device_id\": 1, \"measured_value\": 5}");
-        publish("carcounter/entrance", "{\"device_id\": 99, \"measured_value\": 1}");
+        publish("carcounter/entrance", "{\"device_id\": 1, \"dir\": 5}");
+        publish("carcounter/entrance", "{\"device_id\": 99, \"dir\": 1}");
         mvc.perform(get("/parking-lots/1"))
                 .andExpect(jsonPath("$.freeSpots").value(12))
                 .andExpect(jsonPath("$.carsInside").value(4));

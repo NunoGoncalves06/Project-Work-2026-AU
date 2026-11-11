@@ -178,8 +178,11 @@ fun rememberNow(): Long {
 private val TimeOfDay = DateTimeFormatter.ofPattern("HH:mm:ss")
 private val DayAndTime = DateTimeFormatter.ofPattern("d MMM HH:mm")
 
-/** Data older than two missed polls is stale. */
-private const val STALE_MS = 15_000
+/**
+ * Data older than two missed slow polls (60 s, used while the update stream is up) is stale.
+ * With the stream down the app polls every 5 s and a failed fetch already shows as offline.
+ */
+private const val STALE_MS = 2 * 60_000 + 5_000
 
 /** Whether numbers fetched at [fetchedAt] may no longer be true: offline, or not refreshed for two polls. */
 fun isStale(fetchedAt: Long, offline: Boolean, now: Long) = offline || now - fetchedAt > STALE_MS
