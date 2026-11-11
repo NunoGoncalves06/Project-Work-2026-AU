@@ -31,6 +31,19 @@ class DtosTest {
         val lot = ParkingJson.decodeFromString<LotDetail>(json)
         assertEquals(listOf(Row(1, 0, listOf(Spot(1, true)))), lot.rows)
         assertEquals("Aarhus", lot.address.city)
+        // older backends send no forecast
+        assertEquals(emptyList<Forecast>(), lot.forecast)
+    }
+
+    @Test
+    fun decodesForecast() {
+        val json = """
+            { "id": 1,
+              "address": { "street": "Finlandsgade", "houseNr": "22", "city": "Aarhus" },
+              "totalSpots": 16, "freeSpots": 12, "carsInside": 4, "rows": [],
+              "forecast": [{ "at": "2026-11-11T15:00:00Z", "freeSpots": 5 }] }
+        """
+        assertEquals(listOf(Forecast("2026-11-11T15:00:00Z", 5)), ParkingJson.decodeFromString<LotDetail>(json).forecast)
     }
 
     @Test

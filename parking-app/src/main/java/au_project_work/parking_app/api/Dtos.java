@@ -1,5 +1,6 @@
 package au_project_work.parking_app.api;
 
+import java.time.Instant;
 import java.util.List;
 
 public final class Dtos {
@@ -20,7 +21,11 @@ public final class Dtos {
     public record LotSummaryDto(Integer id, AddressDto address, int totalSpots, long freeSpots, long carsInside) {
     }
 
+    // free spots usually seen at this time of the week; see ParkingLotRepository.forecast
+    public record ForecastDto(Instant at, int freeSpots) {
+    }
+
     public record LotDetailDto(Integer id, AddressDto address, int totalSpots, long freeSpots, long carsInside,
-                               List<RowDto> rows) {
+                               List<RowDto> rows, List<ForecastDto> forecast) {
     }
 }

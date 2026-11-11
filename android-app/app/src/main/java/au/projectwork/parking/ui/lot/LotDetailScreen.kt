@@ -47,6 +47,19 @@ import au.projectwork.parking.ui.isStale
 import au.projectwork.parking.ui.rememberNow
 import au.projectwork.parking.ui.theme.TicketColors
 import au.projectwork.parking.ui.theme.TicketType
+import au.projectwork.parking.data.Forecast
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material3.FilterChip
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,5 +128,51 @@ private fun LotDetailContent(lot: LotDetail, offline: Boolean, fetchedAt: Long) 
                 BayLegend()
             }
         }
+        if (lot.forecast.isNotEmpty()) ForecastCard(lot.forecast, lot.totalSpots)
     }
 }
+
+/** Pick a day, see the free spots usually seen at each of its hours. */
+@Composable
+private fun ForecastCard(forecast: List<Forecast>, totalSpots: Int) {
+    val c = TicketColors.current
+    val days = remember(forecast) { forecastByDay(forecast, ZoneId.systemDefault()) }
+    // kept as text so it survives rotation; falls back to the first day once the picked one has passed
+    var picked by rememberSaveable { mutableStateOf<String?>(null) }
+    val day = days.keys.firstOrNull { it.toString() == picked } ?: days.keys.first()
+    Ticket(Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            FieldLabel("Usually free · of $totalSpots spots")
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                days.keys.forEach { d ->
+                    FilterChip(selected = d == day, onClick = { picked = d.toString() }, label = { Text(dayLabel(d, LocalDate.now())) })
+                }
+            }
+            days.getValue(day).chunked(4).forEach { hours ->
+                Row(Modifier.fillMaxWidth()) {
+                    hours.forEach { (time, free) ->
+                        Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
+                            Text(time.format(HourOfDay), style = TicketType.field, color = c.faded)
+                            Text("~$free", style = TicketType.unit, color = c.ink)
+                        }
+                    }
+                    repeat(4 - hours.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+}
+
+/** Forecast hours grouped by the phone's local day, in time order. */
+fun forecastByDay(forecast: List<Forecast>, zone: ZoneId): Map<LocalDate, List<Pair<LocalTime, Int>>> =
+    forecast.map { Instant.parse(it.at).atZone(zone) to it.freeSpots }
+        .groupBy({ it.first.toLocalDate() }, { it.first.toLocalTime() to it.second })
+
+fun dayLabel(day: LocalDate, today: LocalDate): String = when (day) {
+    today -> "Today"
+    today.plusDays(1) -> "Tomorrow"
+    else -> day.format(WeekdayAndDate)
+}
+
+private val HourOfDay = DateTimeFormatter.ofPattern("HH:mm")
+private val WeekdayAndDate = DateTimeFormatter.ofPattern("EEE d", Locale.ENGLISH)

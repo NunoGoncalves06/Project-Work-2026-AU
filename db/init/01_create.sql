@@ -61,3 +61,7 @@ CREATE TABLE parking_spot_measurements
     occupied BOOLEAN NOT NULL,
     measured_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- the forecast looks up each spot's last reading before a past time, many times per request
+CREATE INDEX parking_spot_measurements_sensor_time_idx
+    ON parking_spot_measurements (parking_spot_sensor_id, measured_at);

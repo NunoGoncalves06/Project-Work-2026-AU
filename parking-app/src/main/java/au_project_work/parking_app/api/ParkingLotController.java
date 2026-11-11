@@ -5,6 +5,7 @@ import au_project_work.parking_app.model.ParkingLot;
 import au_project_work.parking_app.repository.EntranceMeasurementRepository;
 import au_project_work.parking_app.repository.ParkingLotRepository;
 import au_project_work.parking_app.api.Dtos.AddressDto;
+import au_project_work.parking_app.api.Dtos.ForecastDto;
 import au_project_work.parking_app.api.Dtos.LotDetailDto;
 import au_project_work.parking_app.api.Dtos.LotSummaryDto;
 import au_project_work.parking_app.api.Dtos.RowDto;
@@ -35,7 +36,7 @@ public class ParkingLotController {
     @Transactional(readOnly = true)
     public List<LotSummaryDto> getAll() {
         return parkingLotRepository.findAll(Sort.by("id")).stream()
-                .map(this::toDetail)
+                .map(lot -> toDetail(lot, List.of()))
                 .map(d -> new LotSummaryDto(d.id(), d.address(), d.totalSpots(), d.freeSpots(), d.carsInside()))
                 .toList();
     }
@@ -44,12 +45,13 @@ public class ParkingLotController {
     @Transactional(readOnly = true)
     public LotDetailDto getOne(@PathVariable Integer id) {
         return parkingLotRepository.findById(id)
-                .map(this::toDetail)
+                .map(lot -> toDetail(lot, parkingLotRepository.forecast(lot.getId()).stream()
+                        .map(f -> new ForecastDto(f.getAt(), f.getFreeSpots())).toList()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown parking lot " + id));
     }
 
     // shortcut: loads every spot of every lot (a query per row); fine for a handful of lots, switch to an aggregate query if lots grow to hundreds
-    private LotDetailDto toDetail(ParkingLot lot) {
+    private LotDetailDto toDetail(ParkingLot lot, List<ForecastDto> forecast) {
         List<RowDto> rows = lot.getRows().stream().map(row -> {
             List<SpotDto> spots = row.getSpots().stream()
                     .map(s -> new SpotDto(s.getId(), s.getOccupied()))
@@ -61,6 +63,6 @@ public class ParkingLotController {
         Address a = lot.getAddress();
         // after demo testing: switch carsInside to carsInsideResyncedAt4am (daily resync to the spot sensors)
         return new LotDetailDto(lot.getId(), new AddressDto(a.getStreet(), a.getHouseNr(), a.getCity(), a.getLatitude(), a.getLongitude()),
-                totalSpots, freeSpots, entranceMeasurementRepository.carsInside(lot.getId()), rows);
+                totalSpots, freeSpots, entranceMeasurementRepository.carsInside(lot.getId()), rows, forecast);
     }
 }

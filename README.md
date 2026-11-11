@@ -11,6 +11,7 @@ Run application:
 - The DB init scripts only run on an empty volume. After changing `db/init`, reset with: `docker compose down -v` (deletes DB data)
 - To test db initialization run select_checks SQL File in running container with: `docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /scripts/select_checks.sql'`
 - Want more lots to test the app with? Load fake demo lots (3 extra lots, one of them full) into the running DB: `docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /scripts/demo_lots.sql'`. A DB reset removes them
+- Want the forecast to show something? Load 4 weeks of fake spot history (busy on weekday working hours): `docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f /scripts/demo_history.sql'`. Run it once; the file says how to undo it
 - If port 5432 is already used by a local PostgreSQL, stop it or change the db port mapping (e.g. "5433:5432") in docker-compose.yml
 - Run backend tests (needs Docker): `cd parking-app && ./gradlew test`
 
@@ -19,7 +20,7 @@ REST API:
 | Method | Path | Body | Use |
 |---|---|---|---|
 | GET | `/parking-lots` | | all lots with totalSpots, freeSpots, carsInside, address |
-| GET | `/parking-lots/{id}` | | one lot plus rows and spots (`occupied` per spot) |
+| GET | `/parking-lots/{id}` | | one lot plus rows and spots (`occupied` per spot), and `forecast`: free spots usually seen at each of the next 168 hours (a week) (same weekday, last 4 weeks of spot history; empty without history) |
 | GET | `/parking-spot-measurements/all` | | spot sensor history |
 | GET | `/entrance-measurements/all` | | entrance history |
 | GET | `/entrance-measurements/sensor/{id}` | | entrance history of one sensor |

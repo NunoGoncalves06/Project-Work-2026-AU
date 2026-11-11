@@ -39,4 +39,10 @@ data class LotDetail(
     val freeSpots: Int,
     val carsInside: Int,
     val rows: List<Row>,
+    // empty until the lot has a few weeks of sensor history
+    val forecast: List<Forecast> = emptyList(),
 )
+
+/** Free spots usually seen at [at] (an ISO instant, a full hour) on this weekday. */
+@Serializable
+data class Forecast(val at: String, val freeSpots: Int)

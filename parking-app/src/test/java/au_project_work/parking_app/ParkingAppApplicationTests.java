@@ -131,6 +131,31 @@ class ParkingAppApplicationTests {
     }
 
     @Test
+    void forecastAveragesTheLastFourWeeks() throws Exception {
+        // seed history (October) is older than all 4 sampled weeks: spots 1-4 taken in each
+        mvc.perform(get("/parking-lots/1"))
+                .andExpect(jsonPath("$.forecast.length()").value(168))
+                .andExpect(jsonPath("$.forecast[0].at").isString())
+                .andExpect(jsonPath("$.forecast[0].freeSpots").value(12));
+
+        // spots 15 and 16 taken since 15 days ago: for the next day's hours they are occupied in the
+        // 2 newest sampled weeks only, so on average one more spot is taken
+        jdbc.update("""
+                INSERT INTO parking_spot_measurements (parking_spot_sensor_id, occupied, measured_at)
+                VALUES (15, true, now() - interval '15 days'), (16, true, now() - interval '15 days')
+                """);
+        try {
+            mvc.perform(get("/parking-lots/1"))
+                    .andExpect(jsonPath("$.forecast[0:24].freeSpots").value(org.hamcrest.Matchers.everyItem(
+                            org.hamcrest.Matchers.is(11))));
+            // the list endpoint stays lean
+            mvc.perform(get("/parking-lots")).andExpect(jsonPath("$[0].forecast").doesNotExist());
+        } finally {
+            jdbc.update("DELETE FROM parking_spot_measurements WHERE measured_at > now() - interval '16 days'");
+        }
+    }
+
+    @Test
     void badOrUnknownSensorMessagesAreSkipped() throws Exception {
         publish("carcounter/spots", "{\"device_id\": 1}");
         publish("carcounter/spots", "{\"device_id\": 99, \"occupied\": true}");
