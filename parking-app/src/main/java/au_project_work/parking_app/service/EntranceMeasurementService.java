@@ -31,9 +31,9 @@ public class EntranceMeasurementService {
      */
     @Transactional
     public void record(Integer entranceSensorId, Integer measuredValue) {
-        if (entranceSensorId == null || measuredValue == null) {
+        if (entranceSensorId == null || measuredValue == null || (measuredValue != 1 && measuredValue != -1)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "entranceSensorId, measuredValue and measuredAt are required.");
+                    "entranceSensorId and measuredValue (1 or -1) are required");
         }
         EntranceSensor sensor = entranceSensorRepository.findById(entranceSensorId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,

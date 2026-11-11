@@ -20,17 +20,25 @@ REST API:
 |---|---|---|---|
 | GET | `/parking-lots` | | all lots with totalSpots, freeSpots, carsInside, address |
 | GET | `/parking-lots/{id}` | | one lot plus rows and spots (`occupied` per spot) |
-| POST | `/entrance-measurements` | `{"entranceSensorId": 1, "measuredValue": 1}` (1 = in, -1 = out) | entrance/exit sensor |
-| POST | `/parking-spot-measurements` | `{"parkingSpotSensorId": 3, "occupied": true}` | spot sensor |
+| GET | `/parking-spot-measurements/all` | | spot sensor history |
 | GET | `/entrance-measurements/all` | | entrance history |
 | GET | `/entrance-measurements/sensor/{id}` | | entrance history of one sensor |
 | GET | `/parking-lots/stream` | | server-sent events: `changed` when the data changed, `keep-alive` otherwise. Carries no data; the app refetches the GETs above when it arrives |
 
 Watch the stream from a terminal with `curl -N localhost:8080/parking-lots/stream`.
 
-**How the app stays up to date.** It keeps one `/parking-lots/stream` connection open and refetches when the server says `changed`, so an update shows up in about a second without the app asking over and over. The server notices a change in one of two ways: directly, when a measurement comes in through the REST endpoint or MQTT, or by re-reading a small fingerprint of the data every 2 s, which also catches edits made straight in the database. That check runs once for the whole server, not once per app, and only while at least one app is connected. Each app still refetches on its own every 60 s as a backstop, dropping to 5 s whenever the stream is down.
+Sensor readings come in only over MQTT (broker: the `mosquitto` container), not through the REST API:
 
-Errors: 400 = missing or invalid field, 404 = unknown id.
+| Topic | Payload |
+|---|---|
+| `carcounter/spots` | `{"device_id": 3, "occupied": true}` (`device_id` = parking spot sensor id) |
+| `carcounter/entrance` | `{"device_id": 1, "measured_value": 1}` (1 = in, -1 = out) |
+
+Fake a sensor reading while the stack runs: `docker compose exec mosquitto mosquitto_pub -t carcounter/spots -m '{"device_id": 16, "occupied": true}'`. A message with a missing field or an unknown sensor is logged and skipped.
+
+**How the app stays up to date.** It keeps one `/parking-lots/stream` connection open and refetches when the server says `changed`, so an update shows up within a few seconds without the app asking over and over. The server notices a change by re-reading a small fingerprint of the data every 2 s, which catches MQTT readings and edits made straight in the database alike. That check runs once for the whole server, not once per app, and only while at least one app is connected. Each app still refetches on its own every 60 s as a backstop, dropping to 5 s whenever the stream is down.
+
+Errors: 404 = unknown id.
 
 Android app (`android-app/`):
 
