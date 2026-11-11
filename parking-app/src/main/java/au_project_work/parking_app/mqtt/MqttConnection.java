@@ -3,7 +3,7 @@ package au_project_work.parking_app.mqtt;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.integration.annotation.ServiceActivator;
+import org.springframework.integration.annotation.Router;
 import org.springframework.integration.channel.DirectChannel;
 import org.springframework.integration.config.EnableIntegration;
 import org.springframework.integration.core.MessageProducer;
@@ -12,8 +12,8 @@ import org.springframework.integration.mqtt.core.MqttPahoClientFactory;
 import org.springframework.integration.mqtt.inbound.MqttPahoMessageDrivenChannelAdapter;
 import org.springframework.integration.mqtt.support.DefaultPahoMessageConverter;
 import org.springframework.integration.mqtt.support.MqttHeaders;
-import org.springframework.integration.router.HeaderValueRouter;
 import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.handler.annotation.Header;
 
 @Configuration
 @EnableIntegration
@@ -54,13 +54,13 @@ public class MqttConnection {
     }
 
     // maps incoming messages to the listener channels
-    @ServiceActivator(inputChannel = "mqttInputChannel")
-    @Bean
-    public HeaderValueRouter router() {
-        HeaderValueRouter router = new HeaderValueRouter(MqttHeaders.RECEIVED_TOPIC);
-        router.setChannelMapping("carcounter/spots", "spotMeasurementChannel");
-        router.setChannelMapping("carcounter/entrance", "entranceMeasurementChannel");
-        return router;
+    @Router(inputChannel = "mqttInputChannel")
+    public String route(@Header(MqttHeaders.RECEIVED_TOPIC) String topic) {
+        if (topic.startsWith("carcounter/spots"))
+            return "spotMeasurementChannel";
+        if (topic.startsWith("carcounter/entrance"))
+            return "entranceMeasurementChannel";
+        return "nullChannel";
     }
 
     @Bean
@@ -70,7 +70,7 @@ public class MqttConnection {
         // (two backends with the same id on one broker would keep kicking each other off)
         MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter("parking-backend",
                 mqttClientFactory(),
-                "carcounter/spots", "carcounter/entrance");
+                "carcounter/#"); // handle other messages?
         adapter.setCompletionTimeout(5000);
         adapter.setConverter(new DefaultPahoMessageConverter());
         adapter.setQos(1);
