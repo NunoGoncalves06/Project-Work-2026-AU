@@ -11,8 +11,8 @@ import org.springframework.data.jpa.repository.Query;
 public interface ParkingLotRepository extends JpaRepository<ParkingLot, Integer> {
 
     /**
-     * A short string that changes whenever anything the app displays changes. Four
-     * aggregates over small or primary-key-indexed columns, so it stays cheap to run
+     * A short string that changes whenever anything the app displays changes. Seven
+     * aggregates (the newest lot and row ids notice a new lot or row that has no spot yet) over small or primary-key-indexed columns, so it stays cheap to run
      * on a timer; ParkingUpdates uses it to notice edits made straight in the
      * database (psql, a DB client), which reach no application code and so fire no
      * event.
@@ -31,6 +31,8 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLot, Integer>
                         UNION ALL SELECT archived_at FROM parking_spots) a)::text, '-')
                 || ':' || coalesce((SELECT max(updated_at) FROM parking_spots)::text, '-')
                 || ':' || coalesce((SELECT max(entrance_measurement_id) FROM entrance_measurements)::text, '-')
+                || ':' || coalesce((SELECT max(parking_lot_id) FROM parking_lots)::text, '-')
+                || ':' || coalesce((SELECT max(parking_row_id) FROM parking_rows)::text, '-')
             """, nativeQuery = true)
     String fingerprint();
 

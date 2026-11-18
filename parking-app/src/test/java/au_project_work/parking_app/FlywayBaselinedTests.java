@@ -20,14 +20,16 @@ class FlywayBaselinedTests {
     private JdbcTemplate jdbc;
 
     @Test
-    void existingDatabaseIsBaselinedAtV1AndGetsV2() {
+    void existingDatabaseIsBaselinedAtV1AndGetsV2AndV3() {
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT version, type, success FROM flyway_schema_history ORDER BY installed_rank");
-        assertEquals(2, rows.size());
+        assertEquals(3, rows.size());
         assertEquals("1", rows.get(0).get("version"));
         assertEquals("BASELINE", rows.get(0).get("type"));
         assertEquals("2", rows.get(1).get("version"));
+        assertEquals("3", rows.get(2).get("version"));
         assertEquals("SQL", rows.get(1).get("type"));
         assertEquals(true, rows.get(1).get("success"));
+        assertEquals(true, rows.get(2).get("success"));
     }
 }
