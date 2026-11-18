@@ -119,7 +119,7 @@ public class AdminController {
     }
 
     // same identity as /api/admin/me: JWT sub and username, or the placeholder user when ADMIN_AUTH=off
-    private static void audit(Authentication auth, String action, String ids) {
+    static void audit(Authentication auth, String action, String ids) {
         String username = auth.getPrincipal() instanceof Jwt jwt ? jwt.getClaimAsString("username") : auth.getName();
         AUDIT.info("{} by sub={} username={} {}", action, clean(auth.getName()), clean(username), ids);
     }

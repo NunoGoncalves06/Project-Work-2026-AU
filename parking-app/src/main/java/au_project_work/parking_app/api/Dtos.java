@@ -2,6 +2,7 @@ package au_project_work.parking_app.api;
 
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -78,5 +79,18 @@ public final class Dtos {
     }
 
     public record MoveSensorRequest(@NotNull @Min(1) Integer spotId) {
+    }
+
+    public record SpotReadingRequest(@NotNull Boolean occupied) {
+    }
+
+    public record StartTrafficRequest(@NotNull @Min(1) Integer lotId,
+                                      @NotNull @DecimalMin("0") @DecimalMax("1") Double targetOccupancy,
+                                      @NotNull @Min(1) @Max(60) Integer changesPerMinute) {
+    }
+
+    // lotId, targetOccupancy, changesPerMinute, startedAt and endsAt are null when nothing runs
+    public record TrafficStatusDto(boolean running, Integer lotId, Double targetOccupancy, Integer changesPerMinute,
+                                   Instant startedAt, Instant endsAt, int changes) {
     }
 }

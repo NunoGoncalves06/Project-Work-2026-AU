@@ -35,6 +35,12 @@ public class ParkingSpotMeasurementService {
      */
     @Transactional
     public void record(Integer parkingSpotSensorId, Boolean occupied) {
+        record(parkingSpotSensorId, occupied, false);
+    }
+
+    /** Same path for the simulators; simulated readings are stored marked so the forecast can skip them. */
+    @Transactional
+    public void record(Integer parkingSpotSensorId, Boolean occupied, boolean simulated) {
         if (parkingSpotSensorId == null || occupied == null) {
             throw new IllegalArgumentException("parkingSpotSensorId and occupied are required");
         }
@@ -47,6 +53,6 @@ public class ParkingSpotMeasurementService {
         // the history row. Empty for an archived spot: only the history row is stored.
         parkingSpotSensorRepository.findById(parkingSpotSensorId)
                 .ifPresent(sensor -> sensor.getParkingSpot().updateOccupied(occupied, now));
-        parkingSpotMeasurementRepository.save(new ParkingSpotMeasurement(parkingSpotSensorId, occupied, now));
+        parkingSpotMeasurementRepository.save(new ParkingSpotMeasurement(parkingSpotSensorId, occupied, now, simulated));
     }
 }
