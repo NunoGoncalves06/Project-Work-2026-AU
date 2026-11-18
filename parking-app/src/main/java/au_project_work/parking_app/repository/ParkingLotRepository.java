@@ -11,8 +11,8 @@ import org.springframework.data.jpa.repository.Query;
 public interface ParkingLotRepository extends JpaRepository<ParkingLot, Integer> {
 
     /**
-     * A short string that changes whenever anything the app displays changes. Four
-     * aggregates over small or primary-key-indexed columns, so it stays cheap to run
+     * A short string that changes whenever anything the app displays changes. Seven
+     * aggregates (the newest lot and row ids notice a new lot or row that has no spot yet) over small or primary-key-indexed columns, so it stays cheap to run
      * on a timer; ParkingUpdates uses it to notice edits made straight in the
      * database (psql, a DB client), which reach no application code and so fire no
      * event.
@@ -24,10 +24,15 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLot, Integer>
      * the next change.
      */
     @Query(value = """
-            SELECT (SELECT count(*) FROM parking_spots)
-                || ':' || (SELECT count(*) FROM parking_spots WHERE occupied)
+            SELECT (SELECT count(*) FROM parking_spots WHERE archived_at IS NULL)
+                || ':' || (SELECT count(*) FROM parking_spots WHERE occupied AND archived_at IS NULL)
+                || ':' || coalesce((SELECT max(archived_at) FROM (
+                        SELECT archived_at FROM parking_lots UNION ALL SELECT archived_at FROM parking_rows
+                        UNION ALL SELECT archived_at FROM parking_spots) a)::text, '-')
                 || ':' || coalesce((SELECT max(updated_at) FROM parking_spots)::text, '-')
                 || ':' || coalesce((SELECT max(entrance_measurement_id) FROM entrance_measurements)::text, '-')
+                || ':' || coalesce((SELECT max(parking_lot_id) FROM parking_lots)::text, '-')
+                || ':' || coalesce((SELECT max(parking_row_id) FROM parking_rows)::text, '-')
             """, nativeQuery = true)
     String fingerprint();
 
@@ -51,6 +56,7 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLot, Integer>
                 JOIN parking_spots sp ON sp.parking_spot_id = ss.parking_spot_id
                 JOIN parking_rows r ON r.parking_row_id = sp.parking_row_id
                 WHERE r.parking_lot_id = :parkingLotId
+                  AND sp.archived_at IS NULL AND r.archived_at IS NULL
             ),
             hours AS (
                 SELECT date_trunc('hour', now() AT TIME ZONE 'Europe/Copenhagen') + h * interval '1 hour' AS local_hour
@@ -64,11 +70,11 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLot, Integer>
                 SELECT s.local_hour,
                        (SELECT count(*) FROM spots WHERE (
                             SELECT m.occupied FROM parking_spot_measurements m
-                            WHERE m.parking_spot_sensor_id = spots.sensor_id AND m.measured_at <= s.t
+                            WHERE m.parking_spot_sensor_id = spots.sensor_id AND NOT m.simulated AND m.measured_at <= s.t
                             ORDER BY m.measured_at DESC LIMIT 1)) AS n
                 FROM samples s
                 WHERE s.t >= (SELECT min(m.measured_at) FROM parking_spot_measurements m
-                              WHERE m.parking_spot_sensor_id IN (SELECT sensor_id FROM spots))
+                              WHERE NOT m.simulated AND m.parking_spot_sensor_id IN (SELECT sensor_id FROM spots))
             )
             SELECT local_hour AT TIME ZONE 'Europe/Copenhagen' AS at,
                    round((SELECT count(*) FROM spots) - avg(n))::int AS "freeSpots"

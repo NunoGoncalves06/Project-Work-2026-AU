@@ -1,0 +1,15 @@
+[Unit]
+Description=One-click update of the AU Parking stack
+Wants=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ec2-user/au-parking
+# a root-owned copy (install -m 755): root must not run a script ec2-user can edit
+ExecStart=/usr/local/sbin/au-parking-update.sh
+TimeoutStartSec=900
+NoNewPrivileges=yes
+PrivateTmp=yes
+UnsetEnvironment=GIT DOCKER SYSTEMCTL FLOCK RUNUSER APP_USER APP_DIR UPDATE_DIR LOCK_FILE SBIN_DIR UNIT_DIR ACL_OWNER BACKUP_SCRIPT HEALTH_TRIES HEALTH_SLEEP COOLDOWN_SECS
+# no ProtectHome: the git checkout is under /home. No ProtectSystem: it writes /usr/local/sbin and /etc/systemd/system

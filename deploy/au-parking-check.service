@@ -1,0 +1,15 @@
+[Unit]
+Description=Check whether the server is behind origin/main
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ec2-user/au-parking
+# a root-owned copy (install -m 755): root must not run a script ec2-user can edit
+ExecStart=/usr/local/sbin/au-parking-check.sh
+TimeoutStartSec=120
+NoNewPrivileges=yes
+PrivateTmp=yes
+UnsetEnvironment=GIT FLOCK RUNUSER APP_USER APP_DIR UPDATE_DIR LOCK_FILE
+# no ProtectHome: the git checkout it reads is under /home

@@ -1,6 +1,17 @@
 # HTTPS in front of the parking server (docker-compose.prod.yml).
 # Caddy gets and renews the Let's Encrypt certificate for $DOMAIN by itself.
 {$DOMAIN} {
+	# admin dashboard (/admin/): scripts only from this server, API calls only to this server and the
+	# Cognito login domain, never shown inside another site's frame
+	@admin path /admin /admin/*
+	header @admin {
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://{$COGNITO_DOMAIN}; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"
+		Referrer-Policy "no-referrer"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Cache-Control "no-store"
+	}
+
 	reverse_proxy parking-app:8080 {
 		# pass each live-update event (/parking-lots/stream) on immediately instead of buffering it
 		flush_interval -1

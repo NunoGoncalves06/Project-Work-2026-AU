@@ -27,13 +27,25 @@ public class ParkingSpotMeasurement {
     @Column(name = "measured_at", nullable = false)
     private Instant measuredAt;
 
+    @Column(name = "simulated", nullable = false)
+    private boolean simulated;
+
     protected ParkingSpotMeasurement() {
     }
 
     public ParkingSpotMeasurement(Integer parkingSpotSensorId, Boolean occupied, Instant measuredAt) {
+        this(parkingSpotSensorId, occupied, measuredAt, false);
+    }
+
+    public ParkingSpotMeasurement(Integer parkingSpotSensorId, Boolean occupied, Instant measuredAt, boolean simulated) {
         this.parkingSpotSensorId = parkingSpotSensorId;
         this.occupied = occupied;
         this.measuredAt = measuredAt;
+        this.simulated = simulated;
+    }
+
+    public boolean isSimulated() {
+        return simulated;
     }
 
     public Long getParkingSpotMeasurementId() {

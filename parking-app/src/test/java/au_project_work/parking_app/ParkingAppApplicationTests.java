@@ -1,6 +1,10 @@
 package au_project_work.parking_app;
 
 import au_project_work.parking_app.repository.EntranceMeasurementRepository;
+import au_project_work.parking_app.repository.ParkingLotRepository;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.RequestDispatcher;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -14,7 +18,10 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -33,6 +40,9 @@ class ParkingAppApplicationTests {
     private EntranceMeasurementRepository entranceMeasurementRepository;
 
     @Autowired
+    private ParkingLotRepository parkingLotRepository;
+
+    @Autowired
     @Qualifier("mqttInputChannel")
     private MessageChannel mqttInputChannel;
 
@@ -44,6 +54,39 @@ class ParkingAppApplicationTests {
 
     @Test
     void contextLoads() {
+    }
+
+    @Test
+    void appRoutesNeedNoLogin() throws Exception {
+        for (String path : List.of("/parking-lots", "/parking-lots/1", "/parking-lots/stream",
+                "/parking-spot-measurements/all", "/entrance-measurements/all", "/entrance-measurements/sensor/1",
+                "/api/health", "/api/auth/config")) {
+            mvc.perform(get(path)).andExpect(status().isOk());
+        }
+        mvc.perform(head("/parking-lots")).andExpect(status().isOk());
+    }
+
+    // no COGNITO_* and no ADMIN_AUTH here, as on a server before the login is set up: shut, never open
+    @Test
+    void withoutLoginConfigAdminAndUnlistedRoutesAreRefused() throws Exception {
+        mvc.perform(get("/api/auth/config")).andExpect(jsonPath("$.mode").value("unconfigured"));
+        mvc.perform(get("/api/admin/me")).andExpect(status().isServiceUnavailable());
+        mvc.perform(get("/api/admin/me").header("Authorization", "Bearer a.b.c")).andExpect(status().isServiceUnavailable());
+        mvc.perform(post("/api/admin/lots")).andExpect(status().isServiceUnavailable());
+        mvc.perform(get("/nope")).andExpect(status().isServiceUnavailable());
+        mvc.perform(post("/parking-lots")).andExpect(status().isServiceUnavailable());
+    }
+
+    // Tomcat forwards a 404 (unknown lot) to /error: that must stay a 404 for the app, not become a refusal
+    @Test
+    void errorPageIsNotRefused() throws Exception {
+        mvc.perform(get("/error").with(request -> {
+                    request.setDispatcherType(DispatcherType.ERROR);
+                    request.setAttribute(RequestDispatcher.ERROR_STATUS_CODE, 404);
+                    return request;
+                }))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/error")).andExpect(status().isServiceUnavailable());
     }
 
     @Test
@@ -166,5 +209,93 @@ class ParkingAppApplicationTests {
         mvc.perform(get("/parking-lots/1"))
                 .andExpect(jsonPath("$.freeSpots").value(12))
                 .andExpect(jsonPath("$.carsInside").value(4));
+    }
+
+    @Test
+    void archivedSpotsAndRowsDisappearFromTheApi() throws Exception {
+        jdbc.update("UPDATE parking_spots SET archived_at = now() WHERE parking_spot_id = 16");
+        try {
+            mvc.perform(get("/parking-lots"))
+                    .andExpect(jsonPath("$[0].totalSpots").value(15))
+                    .andExpect(jsonPath("$[0].freeSpots").value(11));
+            mvc.perform(get("/parking-lots/1"))
+                    .andExpect(jsonPath("$.totalSpots").value(15))
+                    .andExpect(jsonPath("$.rows[3].spots.length()").value(3));
+        } finally {
+            jdbc.update("UPDATE parking_spots SET archived_at = NULL WHERE parking_spot_id = 16");
+        }
+
+        jdbc.update("UPDATE parking_rows SET archived_at = now() WHERE parking_row_id = 4");
+        try {
+            mvc.perform(get("/parking-lots/1")).andExpect(jsonPath("$.rows.length()").value(3));
+        } finally {
+            jdbc.update("UPDATE parking_rows SET archived_at = NULL WHERE parking_row_id = 4");
+        }
+        mvc.perform(get("/parking-lots/1")).andExpect(jsonPath("$.rows.length()").value(4));
+    }
+
+    @Test
+    void archivedLotIsHiddenFromTheApi() throws Exception {
+        jdbc.update("UPDATE parking_lots SET archived_at = now() WHERE parking_lot_id = 1");
+        try {
+            mvc.perform(get("/parking-lots/1")).andExpect(status().isNotFound());
+            mvc.perform(get("/parking-lots")).andExpect(jsonPath("$[?(@.parkingLotId == 1)]").isEmpty());
+        } finally {
+            jdbc.update("UPDATE parking_lots SET archived_at = NULL WHERE parking_lot_id = 1");
+        }
+    }
+
+    @Test
+    void readingForAnArchivedSpotIsStillStored() {
+        int before = jdbc.queryForObject(
+                "SELECT count(*) FROM parking_spot_measurements WHERE parking_spot_sensor_id = 16", Integer.class);
+        jdbc.update("UPDATE parking_spots SET archived_at = now() WHERE parking_spot_id = 16");
+        try {
+            publish("carcounter/spots", "{\"device_id\": 16, \"occupied\": true}");
+            assertEquals(before + 1, jdbc.queryForObject(
+                    "SELECT count(*) FROM parking_spot_measurements WHERE parking_spot_sensor_id = 16", Integer.class));
+        } finally {
+            jdbc.update("UPDATE parking_spots SET archived_at = NULL WHERE parking_spot_id = 16");
+            jdbc.update("DELETE FROM parking_spot_measurements WHERE parking_spot_sensor_id = 16 AND measured_at > now() - interval '1 minute'");
+            jdbc.update("UPDATE parking_spots SET occupied = false WHERE parking_spot_id = 16");
+        }
+    }
+
+    @Test
+    void archivingChangesTheFingerprint() {
+        String before = parkingLotRepository.fingerprint();
+        jdbc.update("UPDATE parking_spots SET archived_at = now() WHERE parking_spot_id = 16");
+        try {
+            assertNotEquals(before, parkingLotRepository.fingerprint());
+        } finally {
+            jdbc.update("UPDATE parking_spots SET archived_at = NULL WHERE parking_spot_id = 16");
+        }
+        assertEquals(before, parkingLotRepository.fingerprint());
+    }
+
+    @Test
+    void archivedSpotsAreLeftOutOfTheForecast() {
+        // spot 16 is free for the whole next day in the seed: archiving it must lower the free count
+        int before = parkingLotRepository.forecast(1).get(0).getFreeSpots();
+        jdbc.update("UPDATE parking_spots SET archived_at = now() WHERE parking_spot_id = 16");
+        try {
+            assertEquals(before - 1, parkingLotRepository.forecast(1).get(0).getFreeSpots());
+        } finally {
+            jdbc.update("UPDATE parking_spots SET archived_at = NULL WHERE parking_spot_id = 16");
+        }
+    }
+
+    @Test
+    void simulatedMeasurementsDoNotChangeTheForecast() {
+        List<Integer> before = parkingLotRepository.forecast(1).stream().map(h -> h.getFreeSpots()).toList();
+        jdbc.update("""
+                INSERT INTO parking_spot_measurements (parking_spot_sensor_id, occupied, measured_at, simulated)
+                VALUES (15, true, now() - interval '15 days', true), (16, true, now() - interval '15 days', true)
+                """);
+        try {
+            assertEquals(before, parkingLotRepository.forecast(1).stream().map(h -> h.getFreeSpots()).toList());
+        } finally {
+            jdbc.update("DELETE FROM parking_spot_measurements WHERE simulated");
+        }
     }
 }

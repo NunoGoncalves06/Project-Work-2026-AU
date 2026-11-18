@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <title>AU Parking admin</title>
+  <link rel="stylesheet" href="admin.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#view">Skip to content</a>
+  <header class="bar">
+    <div class="bar-top">
+      <a class="brand" href="#/lots">
+        <span class="plate" aria-hidden="true">P</span>
+        <span>AU Parking <span class="brand-sub">admin</span></span>
+      </a>
+      <p class="live" id="live" hidden><span class="dot" aria-hidden="true"></span><span id="live-text">LIVE</span></p>
+      <div class="who" id="who" hidden>
+        <span id="who-name"></span>
+        <span class="role" id="who-role"></span>
+        <button type="button" class="btn btn-quiet" id="logout">Log out</button>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs" aria-label="Sections" hidden>
+      <a href="#/lots" data-tab="lots">Lots</a>
+      <a href="#/traffic" data-tab="traffic" data-min-role="operator">Traffic</a>
+      <a href="#/update" data-tab="update">Server update</a>
+    </nav>
+  </header>
+
+  <p class="toast" id="status" role="status" aria-live="polite"></p>
+
+  <main id="view" tabindex="-1">
+    <p class="loading">Loading…</p>
+  </main>
+
+  <dialog id="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+    <form method="dialog" class="ticket confirm">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-text"></p>
+      <div class="actions">
+        <button type="submit" value="cancel" class="btn" id="confirm-cancel" autofocus>Keep it</button>
+        <button type="submit" value="ok" class="btn btn-danger" id="confirm-ok"></button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
