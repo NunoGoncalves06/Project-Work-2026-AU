@@ -25,6 +25,7 @@ public class ParkingAppApplication {
 
 	@Bean
 	RandomGenerator randomGenerator() {
-		return RandomGenerator.getDefault();
+		// java.util.Random lives in java.base; getDefault() needs jdk.random, missing from the slim runtime image
+		return new java.util.Random();
 	}
 }
