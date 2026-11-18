@@ -41,6 +41,8 @@ Fake a sensor reading while the stack runs: `docker compose exec mosquitto mosqu
 
 Errors: 404 = unknown id.
 
+Admin dashboard (`/admin/`: roles, buttons, Cognito setup): `docs/admin-dashboard.md`. Server setup and updates: `docs/deploy-aws.md`.
+
 Android app (`android-app/`):
 
 - Requirements: Android Studio (or the Android SDK at `~/Android/Sdk`). No local backend needed: the app talks to the shared server on AWS, `https://au-parking.duckdns.org/` (see `docs/deploy-aws.md`)

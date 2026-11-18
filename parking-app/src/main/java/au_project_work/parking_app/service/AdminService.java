@@ -22,7 +22,7 @@ import java.util.Map;
 /**
  * Lot, row, spot and sensor changes for the admin API, one transaction per method. Plain SQL on purpose: the
  * entities hide archived rows (@SQLRestriction), which is wrong for a sensor that is moved off an archived spot.
- * Unique-key races surface as DataIntegrityViolationException; the controller turns them into 409.
+ * Unique-key races surface as DuplicateKeyException; the controller turns them into 409.
  */
 @Service
 public class AdminService {

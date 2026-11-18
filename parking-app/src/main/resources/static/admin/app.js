@@ -566,7 +566,7 @@ async function pageUpdate() {
       Outdated: admin ? 'A newer version is on main. Press the button to install it; the dashboard pauses for about a minute while the server restarts.'
         : 'A newer version is on main. An admin can install it.',
       Updating: 'Installing. The server restarts at the end; this page reconnects by itself.',
-      ErrorUpdating: 'The last update failed.' + (admin ? ' Press the button to try again.' : ''),
+      ErrorUpdating: 'The last update failed.' + (admin ? ' Press the button to try again (at least 5 minutes after the last run).' : ''),
       UpdateSuccessful: 'The update finished and the server is running the new version.',
       Unavailable: 'Updates cannot be started on this server: the update service is not installed.',
     }[state] || '';

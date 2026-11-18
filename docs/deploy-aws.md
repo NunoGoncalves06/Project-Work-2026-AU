@@ -53,6 +53,7 @@ sudo install -o 1883 -g 1883 -m 600 aclfile mqtt/config/aclfile && rm aclfile
 cat > .env <<EOF
 DOMAIN=au-parking.duckdns.org
 POSTGRES_PASSWORD=$(tr -dc 'a-f0-9' < /dev/urandom | head -c 48)
+APP_DB_PASSWORD=$(tr -dc 'a-f0-9' < /dev/urandom | head -c 48)
 MQTT_USERNAME=parking-backend
 MQTT_PASSWORD=$(tr -dc 'a-f0-9' < /dev/urandom | head -c 48)
 SENSOR_PASSWORD=$(tr -dc 'a-f0-9' < /dev/urandom | head -c 48)
@@ -69,7 +70,29 @@ docker run --rm -v "$PWD/mqtt/config:/c" eclipse-mosquitto:2 mosquitto_passwd -b
 sudo chown 1883:1883 mqtt/config/pwfile && sudo chmod 600 mqtt/config/pwfile
 ```
 
-Take a backup (`sudo systemctl start backup-db.service`) right before deploying the Flyway version.
+Take a backup (`sudo systemctl start backup-db.service`) right before deploying the Flyway version, and read "Before the first Flyway deploy" below.
+
+### `.env` values
+
+Source: `.env.example` (copy it, never commit `.env`). `docker-compose.prod.yml` stops with a message if a required value is missing.
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `DOMAIN` | yes | Hostname of the Elastic IP; Caddy gets its certificate for it. |
+| `POSTGRES_PASSWORD` | yes | Owner login of the database (also used by the Flyway migrations). Postgres only reads it while its volume is empty. |
+| `APP_DB_PASSWORD` | yes | The backend's own database login `parking_app` (rows only, no schema changes). Set again on every start, so changing it here and restarting changes it. 16 or more letters and digits only, e.g. `openssl rand -hex 24`. |
+| `COGNITO_REGION`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`, `COGNITO_DOMAIN` | all four or none | Admin dashboard login, see `docs/admin-dashboard.md`. `COGNITO_DOMAIN` is the host only, without `https://`. With none, the admin API refuses everything (503). With only some, the backend does not start. |
+| `MQTT_USERNAME`, `MQTT_PASSWORD` | yes | The backend's broker login; must also be a user in `mqtt/config/pwfile`. |
+| `SENSOR_PASSWORD` | when creating `pwfile` | The sensors' login. Not read by compose. |
+| `ADMIN_AUTH` | never on the server | `off` removes the login completely. For local development only. `docker-compose.prod.yml` does not pass it on. |
+
+An existing `.env` from before the dashboard has no `APP_DB_PASSWORD`. Add it:
+
+```bash
+echo "APP_DB_PASSWORD=$(openssl rand -hex 24)" >> .env
+```
+
+### Start
 
 Start (and, on later deploys, restart with the new image). On a **brand-new server** read "Encrypted MQTT for sensors" below first: Mosquitto cannot start until its certificate exists.
 
@@ -222,7 +245,7 @@ sudo gunzip -c /var/backups/au-parking/parking-db-<date>.sql.gz | docker compose
 
 ## One-click update
 
-The admin dashboard's Update button makes the backend create an empty file; a systemd path unit on the host sees it and runs `deploy/au-parking-update.sh` as root (backup, `git reset --hard origin/main` as ec2-user, reinstall scripts and units, pull the image from `ghcr.io/nunogoncalves06/au-parking-backend:latest`, `up -d`, health check, rollback to the previous image and commit if it fails). The backend container has no Docker access: it mounts `/var/lib/au-parking-update` read-only, plus `inbox/` writable, which is the only place it can write. The result is in `status.json`; `au-parking-check.timer` records every 5 minutes whether the checkout is behind (`remote.json`).
+The admin dashboard's Update button makes the backend create an empty file; a systemd path unit on the host sees it and runs `deploy/au-parking-update.sh` as root (backup, `git reset --hard origin/main` as ec2-user, reinstall scripts and units, pull the image built for the new commit (`ghcr.io/nunogoncalves06/au-parking-backend:<sha>`), `up -d`, health check, rollback to the previous image and commit if it fails). The backend container has no Docker access: it mounts `/var/lib/au-parking-update` read-only, plus `inbox/` writable, which is the only place it can write. The result is in `status.json`; `au-parking-check.timer` records every 5 minutes whether the checkout is behind (`remote.json`).
 
 Needs: `~/au-parking` is a git clone of `origin/main` (read-only deploy key; keep `.env` and `pwfile`, they are untracked), and the GHCR package is public (GitHub, after the first workflow run). The backend image runs as root inside its container, so the folders are root-owned; if a `USER` is ever added to the Dockerfile, `chown` `inbox` to its uid.
 
@@ -237,11 +260,136 @@ sudo systemctl enable --now au-parking-update.path au-parking-check.timer
 docker compose -f docker-compose.prod.yml up -d    # remounts the folder into parking-app
 ```
 
-The compose file runs the local tag `au-parking-backend:current`. An update pulls `ghcr.io/nunogoncalves06/au-parking-backend:<new commit sha>` (so the workflow must have finished: otherwise the run stops with "New version not built yet" and changes nothing), tags it `:current`, and keeps the previous image as `:rollback`. Later plain `docker compose up -d` runs keep the deployed version. Once, before the first update, seed the tag: `docker pull ghcr.io/nunogoncalves06/au-parking-backend:latest && docker tag ghcr.io/nunogoncalves06/au-parking-backend:latest au-parking-backend:current` (or keep the laptop-built image tagged as above). Updates are at most one per 5 minutes. The scripts and units installed by an update come from the new commit (fixed list), so the button keeps them current.
+The compose file runs the local tag `au-parking-backend:current`. An update pulls `ghcr.io/nunogoncalves06/au-parking-backend:<new commit sha>` (so the workflow must have finished: otherwise the run stops with "New version not built yet" and changes nothing), tags it `:current`, and keeps the previous image as `:rollback`. Later plain `docker compose up -d` runs keep the deployed version. Once, before the first update, seed the tag (see "Seed the image, GHCR, protect `main`" below). Updates are at most one per 5 minutes. The scripts and units installed by an update come from the new commit (fixed list), so the button keeps them current.
+
+### Convert `~/au-parking` into a git checkout
+
+The folder was filled by `scp`, so it is not a git repository yet. Turn it into a checkout of `origin/main` in the same folder. Nothing is moved.
+
+What survives: `git reset --hard` only touches files that git tracks. `.env` is untracked and ignored by `.gitignore` (`*.env`), and `mqtt/config/pwfile` is ignored by `mqtt/.gitignore`, so both stay as they are (checked with `git check-ignore`). `mqtt/config/aclfile` is different: it is tracked, so the reset replaces it with the repository's copy, owned by `ec2-user`. Step 6 gives it back to uid 1883 (the update script does the same on every update).
+
+On the server, as `ec2-user`, in `~/au-parking`:
+
+1. Install git if missing, and make a read-only deploy key. No passphrase: the update runs unattended.
+
+```bash
+sudo dnf install -y git
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+ssh-keygen -t ed25519 -N '' -C au-parking-deploy -f ~/.ssh/au-parking-deploy
+cat ~/.ssh/au-parking-deploy.pub
+```
+
+2. On GitHub: repository `NunoGoncalves06/Project-Work-2026-AU` > Settings > Deploy keys > Add deploy key. Paste the line printed above. Leave **Allow write access** unticked (read-only).
+
+3. Tell ssh to use that key for GitHub, and trust GitHub's host key. Compare the printed fingerprint with the one GitHub publishes before you accept it.
+
+```bash
+cat >> ~/.ssh/config <<'EOF'
+Host github.com
+  IdentityFile ~/.ssh/au-parking-deploy
+  IdentitiesOnly yes
+EOF
+chmod 600 ~/.ssh/config
+ssh-keyscan -t ed25519 github.com > ~/.ssh/known_hosts.new && ssh-keygen -lf ~/.ssh/known_hosts.new
+cat ~/.ssh/known_hosts.new >> ~/.ssh/known_hosts && rm ~/.ssh/known_hosts.new
+ssh -T git@github.com    # "Hi NunoGoncalves06/Project-Work-2026-AU! You've successfully authenticated"
+```
+
+The update scripts run git as `ec2-user` with `HOME=/home/ec2-user`, so they use this key and `known_hosts` and never ask a question.
+
+4. Make the folder a checkout.
+
+```bash
+cd ~/au-parking
+git init -b main
+git remote add origin git@github.com:NunoGoncalves06/Project-Work-2026-AU.git
+git fetch origin main
+```
+
+5. Replace the copied files with the repository's. This overwrites any local edit to a tracked file, so look at `git status` first if you changed something by hand on the server.
+
+```bash
+git reset --hard origin/main
+git status --short    # must not list .env or mqtt/config/pwfile
+ls -l .env mqtt/config/pwfile
+```
+
+6. Give the broker its ACL file back, as the update script does (`apply_perms` in `deploy/au-parking-update.sh`):
+
+```bash
+sudo chown 1883:1883 mqtt/config/aclfile && sudo chmod 600 mqtt/config/aclfile
+sudo chown 1883:1883 mqtt/config/pwfile && sudo chmod 600 mqtt/config/pwfile
+chmod -R a+rX db && chmod a+r mqtt/config/mosquitto.prod.conf Caddyfile
+```
+
+### Seed the image, GHCR, protect `main`
+
+1. **Seed `au-parking-backend:current`.** `docker-compose.prod.yml` runs `au-parking-backend:current` by default, so the tag must exist before the first `up -d` with the new compose file and before the first update. Either pull the latest build from GitHub (needs the package to be public, next step):
+
+```bash
+docker pull ghcr.io/nunogoncalves06/au-parking-backend:latest
+docker tag ghcr.io/nunogoncalves06/au-parking-backend:latest au-parking-backend:current
+```
+
+   or keep the laptop-built image: `docker tag parking-app:prod au-parking-backend:current`.
+
+2. **Make the GHCR package public.** The workflow `.github/workflows/backend-image.yml` runs on every push to `main` (tests, then build and push `:latest` and `:<commit sha>`). After its first successful run: GitHub > your profile > Packages > `au-parking-backend` > Package settings > Change visibility > Public. The image has no secrets in it (they come from `.env` at run time). The server pulls without a login, so a private package makes every update stop at "New version not built yet".
+
+3. **Protect `main`.** Whoever can push to `main` decides what runs as root on the server: the update button checks out `origin/main` and installs the scripts and units from it. On GitHub: Settings > Branches > add a rule for `main`: require a pull request with at least 1 approval, do not allow force pushes, do not allow deletion, and include administrators if you can.
+
+### Before the first Flyway deploy
+
+The backend now runs Flyway (`V1__baseline.sql`, `V2__admin_schema.sql`, `V3__address_identity.sql`). On a database that already has data, Flyway adopts it as version 1 without running V1 (`spring.flyway.baseline-on-migrate=true`, `baseline-version=1`). That is only safe if the live schema really equals V1.
+
+1. Dump the live schema and compare it with V1 by eye (tables, columns, types, keys):
+
+```bash
+cd ~/au-parking
+docker compose -f docker-compose.prod.yml exec -T db pg_dump -U postgres -d parking-db --schema-only > live-schema.sql
+less live-schema.sql
+less parking-app/src/main/resources/db/migration/V1__baseline.sql
+rm live-schema.sql
+```
+
+2. If they differ, stop and fix the difference first (or write the change as a new migration). Do not deploy.
+
+3. Take a backup and check it exists:
+
+```bash
+sudo systemctl start backup-db.service
+sudo ls -l /var/backups/au-parking
+```
+
+If you must go back to a dump older than this deploy, see the restore note under "Database backups".
+
+## First deploy of the admin dashboard
+
+Do these in order. Steps 1 to 4 can be done before anything changes on the server.
+
+1. **GitHub:** protect `main` (see above). Merge the admin dashboard branch into `main` through a pull request, and wait for the `backend-image` workflow to finish (Actions tab, green).
+2. **GitHub:** make the GHCR package `au-parking-backend` public.
+3. **AWS:** create the Cognito pool, app client, domain, groups and users, and note the four values (`docs/admin-dashboard.md`, "Set up Cognito"). Turn on MFA for admins.
+4. **Server:** make the deploy key, add it on GitHub, and convert `~/au-parking` to a git checkout (above).
+5. **Server:** check the schema against V1 and take a backup (above).
+6. **Server:** edit `.env`: add `APP_DB_PASSWORD` and the four `COGNITO_*` lines. No `ADMIN_AUTH`.
+7. **Server:** seed `au-parking-backend:current` (above).
+8. **Server:** install the update scripts and units (the install block in "One-click update"). The backup script and its units must be installed too (the update runs `/usr/local/sbin/backup-db.sh`); see "Database backups".
+9. **Server:** start it, then watch the log for the Flyway migrations and for errors:
+
+```bash
+cd ~/au-parking
+docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml logs parking-app | tail -50
+curl https://au-parking.duckdns.org/api/health
+```
+
+10. **Browser:** open `https://au-parking.duckdns.org/admin/` and sign in with one user of each role. Check: a viewer has no Traffic tab, an operator cannot press Update, an admin can add and archive a lot.
+11. **Browser:** go to Server update and press the button when it says Outdated. Wait for "Update Successful". If it says "New version not built yet", the workflow is still running: wait and press again after the 5-minute cooldown.
+12. Check the audit trail: `docker compose -f docker-compose.prod.yml logs parking-app | grep audit`.
 
 
 ## Good to know
 
 - **Data** lives in the `pgdata` volume. `down` keeps it; `down -v` deletes it, and the init scripts then run again on the empty database.
 - **Out of memory?** If the server keeps restarting (`docker compose ... ps`, `dmesg | grep -i kill`), stop the instance and change its type to t3.small.
-- **The release APK** still points at the emulator address and is unsigned; use the debug build above for demos.
+- **The release APK** (v1.0.0 on GitHub Releases) points at `https://au-parking.duckdns.org/` and is unsigned.
