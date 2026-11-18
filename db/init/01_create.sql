@@ -1,3 +1,4 @@
+-- Frozen: Flyway V1. Schema changes go in a new parking-app/src/main/resources/db/migration/V<n>__*.sql.
 CREATE TABLE addresses
 (
     address_id INTEGER PRIMARY KEY,

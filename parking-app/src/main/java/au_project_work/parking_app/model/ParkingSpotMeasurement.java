@@ -27,6 +27,9 @@ public class ParkingSpotMeasurement {
     @Column(name = "measured_at", nullable = false)
     private Instant measuredAt;
 
+    @Column(name = "simulated", nullable = false)
+    private boolean simulated;
+
     protected ParkingSpotMeasurement() {
     }
 
@@ -34,6 +37,10 @@ public class ParkingSpotMeasurement {
         this.parkingSpotSensorId = parkingSpotSensorId;
         this.occupied = occupied;
         this.measuredAt = measuredAt;
+    }
+
+    public boolean isSimulated() {
+        return simulated;
     }
 
     public Long getParkingSpotMeasurementId() {

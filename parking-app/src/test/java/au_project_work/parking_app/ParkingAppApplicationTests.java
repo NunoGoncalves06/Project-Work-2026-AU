@@ -1,6 +1,8 @@
 package au_project_work.parking_app;
 
 import au_project_work.parking_app.repository.EntranceMeasurementRepository;
+import au_project_work.parking_app.repository.ParkingLotRepository;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -14,6 +16,7 @@ import org.springframework.messaging.MessageChannel;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -31,6 +34,9 @@ class ParkingAppApplicationTests {
 
     @Autowired
     private EntranceMeasurementRepository entranceMeasurementRepository;
+
+    @Autowired
+    private ParkingLotRepository parkingLotRepository;
 
     @Autowired
     @Qualifier("mqttInputChannel")
@@ -166,5 +172,93 @@ class ParkingAppApplicationTests {
         mvc.perform(get("/parking-lots/1"))
                 .andExpect(jsonPath("$.freeSpots").value(12))
                 .andExpect(jsonPath("$.carsInside").value(4));
+    }
+
+    @Test
+    void archivedSpotsAndRowsDisappearFromTheApi() throws Exception {
+        jdbc.update("UPDATE parking_spots SET archived_at = now() WHERE parking_spot_id = 16");
+        try {
+            mvc.perform(get("/parking-lots"))
+                    .andExpect(jsonPath("$[0].totalSpots").value(15))
+                    .andExpect(jsonPath("$[0].freeSpots").value(11));
+            mvc.perform(get("/parking-lots/1"))
+                    .andExpect(jsonPath("$.totalSpots").value(15))
+                    .andExpect(jsonPath("$.rows[3].spots.length()").value(3));
+        } finally {
+            jdbc.update("UPDATE parking_spots SET archived_at = NULL WHERE parking_spot_id = 16");
+        }
+
+        jdbc.update("UPDATE parking_rows SET archived_at = now() WHERE parking_row_id = 4");
+        try {
+            mvc.perform(get("/parking-lots/1")).andExpect(jsonPath("$.rows.length()").value(3));
+        } finally {
+            jdbc.update("UPDATE parking_rows SET archived_at = NULL WHERE parking_row_id = 4");
+        }
+        mvc.perform(get("/parking-lots/1")).andExpect(jsonPath("$.rows.length()").value(4));
+    }
+
+    @Test
+    void archivedLotIsHiddenFromTheApi() throws Exception {
+        jdbc.update("UPDATE parking_lots SET archived_at = now() WHERE parking_lot_id = 1");
+        try {
+            mvc.perform(get("/parking-lots/1")).andExpect(status().isNotFound());
+            mvc.perform(get("/parking-lots")).andExpect(jsonPath("$[?(@.parkingLotId == 1)]").isEmpty());
+        } finally {
+            jdbc.update("UPDATE parking_lots SET archived_at = NULL WHERE parking_lot_id = 1");
+        }
+    }
+
+    @Test
+    void readingForAnArchivedSpotIsStillStored() {
+        int before = jdbc.queryForObject(
+                "SELECT count(*) FROM parking_spot_measurements WHERE parking_spot_sensor_id = 16", Integer.class);
+        jdbc.update("UPDATE parking_spots SET archived_at = now() WHERE parking_spot_id = 16");
+        try {
+            publish("carcounter/spots", "{\"device_id\": 16, \"occupied\": true}");
+            assertEquals(before + 1, jdbc.queryForObject(
+                    "SELECT count(*) FROM parking_spot_measurements WHERE parking_spot_sensor_id = 16", Integer.class));
+        } finally {
+            jdbc.update("UPDATE parking_spots SET archived_at = NULL WHERE parking_spot_id = 16");
+            jdbc.update("DELETE FROM parking_spot_measurements WHERE parking_spot_sensor_id = 16 AND measured_at > now() - interval '1 minute'");
+            jdbc.update("UPDATE parking_spots SET occupied = false WHERE parking_spot_id = 16");
+        }
+    }
+
+    @Test
+    void archivingChangesTheFingerprint() {
+        String before = parkingLotRepository.fingerprint();
+        jdbc.update("UPDATE parking_spots SET archived_at = now() WHERE parking_spot_id = 16");
+        try {
+            assertNotEquals(before, parkingLotRepository.fingerprint());
+        } finally {
+            jdbc.update("UPDATE parking_spots SET archived_at = NULL WHERE parking_spot_id = 16");
+        }
+        assertEquals(before, parkingLotRepository.fingerprint());
+    }
+
+    @Test
+    void archivedSpotsAreLeftOutOfTheForecast() {
+        // spot 16 is free for the whole next day in the seed: archiving it must lower the free count
+        int before = parkingLotRepository.forecast(1).get(0).getFreeSpots();
+        jdbc.update("UPDATE parking_spots SET archived_at = now() WHERE parking_spot_id = 16");
+        try {
+            assertEquals(before - 1, parkingLotRepository.forecast(1).get(0).getFreeSpots());
+        } finally {
+            jdbc.update("UPDATE parking_spots SET archived_at = NULL WHERE parking_spot_id = 16");
+        }
+    }
+
+    @Test
+    void simulatedMeasurementsDoNotChangeTheForecast() {
+        List<Integer> before = parkingLotRepository.forecast(1).stream().map(h -> h.getFreeSpots()).toList();
+        jdbc.update("""
+                INSERT INTO parking_spot_measurements (parking_spot_sensor_id, occupied, measured_at, simulated)
+                VALUES (15, true, now() - interval '15 days', true), (16, true, now() - interval '15 days', true)
+                """);
+        try {
+            assertEquals(before, parkingLotRepository.forecast(1).stream().map(h -> h.getFreeSpots()).toList());
+        } finally {
+            jdbc.update("DELETE FROM parking_spot_measurements WHERE simulated");
+        }
     }
 }

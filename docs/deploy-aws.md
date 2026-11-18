@@ -69,6 +69,8 @@ docker run --rm -v "$PWD/mqtt/config:/c" eclipse-mosquitto:2 mosquitto_passwd -b
 sudo chown 1883:1883 mqtt/config/pwfile && sudo chmod 600 mqtt/config/pwfile
 ```
 
+Take a backup (`sudo systemctl start backup-db.service`) right before deploying the Flyway version.
+
 Start (and, on later deploys, restart with the new image). On a **brand-new server** read "Encrypted MQTT for sensors" below first: Mosquitto cannot start until its certificate exists.
 
 ```bash
@@ -211,6 +213,8 @@ sudo systemctl enable --now backup-db.timer
 ```
 
 Restore one (this replaces the current data with the dump's):
+
+If the dump is older than the Flyway deploy, run `DROP TABLE flyway_schema_history;` before restarting parking-app.
 
 ```bash
 sudo gunzip -c /var/backups/au-parking/parking-db-<date>.sql.gz | docker compose -f docker-compose.prod.yml exec -T db psql -U postgres -d parking-db

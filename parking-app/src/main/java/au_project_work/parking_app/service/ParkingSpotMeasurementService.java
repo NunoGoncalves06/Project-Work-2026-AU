@@ -6,7 +6,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 
 import au_project_work.parking_app.model.ParkingSpotMeasurement;
-import au_project_work.parking_app.model.ParkingSpotSensor;
 import au_project_work.parking_app.repository.ParkingSpotMeasurementRepository;
 import au_project_work.parking_app.repository.ParkingSpotSensorRepository;
 
@@ -39,12 +38,15 @@ public class ParkingSpotMeasurementService {
         if (parkingSpotSensorId == null || occupied == null) {
             throw new IllegalArgumentException("parkingSpotSensorId and occupied are required");
         }
-        ParkingSpotSensor sensor = parkingSpotSensorRepository.findById(parkingSpotSensorId)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown parking spot sensor " + parkingSpotSensorId));
+        // existsById does not join the spot, so a sensor of an archived spot still counts
+        if (!parkingSpotSensorRepository.existsById(parkingSpotSensorId)) {
+            throw new IllegalArgumentException("Unknown parking spot sensor " + parkingSpotSensorId);
+        }
         Instant now = Instant.now();
         // managed entity: the update is flushed at commit, in the same transaction as
-        // the history row
-        sensor.getParkingSpot().updateOccupied(occupied, now);
-        parkingSpotMeasurementRepository.save(new ParkingSpotMeasurement(sensor.getId(), occupied, now));
+        // the history row. Empty for an archived spot: only the history row is stored.
+        parkingSpotSensorRepository.findById(parkingSpotSensorId)
+                .ifPresent(sensor -> sensor.getParkingSpot().updateOccupied(occupied, now));
+        parkingSpotMeasurementRepository.save(new ParkingSpotMeasurement(parkingSpotSensorId, occupied, now));
     }
 }

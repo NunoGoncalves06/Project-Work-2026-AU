@@ -31,3 +31,8 @@ ON CONFLICT DO NOTHING;
 INSERT INTO parking_spot_sensors(parking_spot_sensor_id, parking_spot_id)
 SELECT parking_spot_id, parking_spot_id FROM parking_spots WHERE parking_spot_id >= 2000
 ON CONFLICT DO NOTHING;
+
+-- keep the identity sequences after the explicit ids above
+SELECT setval(pg_get_serial_sequence('parking_lots', 'parking_lot_id'), coalesce(max(parking_lot_id), 0) + 1, false) FROM parking_lots;
+SELECT setval(pg_get_serial_sequence('parking_rows', 'parking_row_id'), coalesce(max(parking_row_id), 0) + 1, false) FROM parking_rows;
+SELECT setval(pg_get_serial_sequence('parking_spots', 'parking_spot_id'), coalesce(max(parking_spot_id), 0) + 1, false) FROM parking_spots;
