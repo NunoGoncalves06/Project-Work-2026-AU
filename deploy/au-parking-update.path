@@ -1,0 +1,10 @@
+[Unit]
+Description=Start the update when the backend creates the request file
+
+[Path]
+# the backend can only create files in inbox/; it never runs anything
+PathExists=/var/lib/au-parking-update/inbox/request
+Unit=au-parking-update.service
+
+[Install]
+WantedBy=multi-user.target

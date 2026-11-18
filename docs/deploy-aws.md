@@ -33,7 +33,7 @@ scp -i $key deploy/sync-mqtt-cert.sh deploy/sync-mqtt-cert.service deploy/sync-m
 Remove-Item parking-app.tar
 ```
 
-Always use `docker-compose.prod.yml` on the server. Never run the plain `docker compose up` (the dev `docker-compose.yml`): it publishes an anonymous broker on port 1883.
+The compose file now runs `au-parking-backend:current`, filled from ghcr.io (see "One-click update"); to run the laptop-built image above instead, tag it `docker tag parking-app:prod au-parking-backend:current`. Always use `docker-compose.prod.yml` on the server. Never run the plain `docker compose up` (the dev `docker-compose.yml`): it publishes an anonymous broker on port 1883.
 
 Then on the server (`ssh -i $key $srv`):
 
@@ -219,6 +219,26 @@ If the dump is older than the Flyway deploy, run `DROP TABLE flyway_schema_histo
 ```bash
 sudo gunzip -c /var/backups/au-parking/parking-db-<date>.sql.gz | docker compose -f docker-compose.prod.yml exec -T db psql -U postgres -d parking-db
 ```
+
+## One-click update
+
+The admin dashboard's Update button makes the backend create an empty file; a systemd path unit on the host sees it and runs `deploy/au-parking-update.sh` as root (backup, `git reset --hard origin/main` as ec2-user, reinstall scripts and units, pull the image from `ghcr.io/nunogoncalves06/au-parking-backend:latest`, `up -d`, health check, rollback to the previous image and commit if it fails). The backend container has no Docker access: it mounts `/var/lib/au-parking-update` read-only, plus `inbox/` writable, which is the only place it can write. The result is in `status.json`; `au-parking-check.timer` records every 5 minutes whether the checkout is behind (`remote.json`).
+
+Needs: `~/au-parking` is a git clone of `origin/main` (read-only deploy key; keep `.env` and `pwfile`, they are untracked), and the GHCR package is public (GitHub, after the first workflow run). The backend image runs as root inside its container, so the folders are root-owned; if a `USER` is ever added to the Dockerfile, `chown` `inbox` to its uid.
+
+Install once, on the server from `~/au-parking`:
+
+```bash
+sudo install -d -m 755 /var/lib/au-parking-update /var/lib/au-parking-update/inbox
+for s in au-parking-update au-parking-check; do sudo install -o root -g root -m 755 deploy/$s.sh /usr/local/sbin/$s.sh; done
+sudo cp deploy/au-parking-update.service deploy/au-parking-update.path deploy/au-parking-check.service deploy/au-parking-check.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now au-parking-update.path au-parking-check.timer
+docker compose -f docker-compose.prod.yml up -d    # remounts the folder into parking-app
+```
+
+The compose file runs the local tag `au-parking-backend:current`. An update pulls `ghcr.io/nunogoncalves06/au-parking-backend:<new commit sha>` (so the workflow must have finished: otherwise the run stops with "New version not built yet" and changes nothing), tags it `:current`, and keeps the previous image as `:rollback`. Later plain `docker compose up -d` runs keep the deployed version. Once, before the first update, seed the tag: `docker pull ghcr.io/nunogoncalves06/au-parking-backend:latest && docker tag ghcr.io/nunogoncalves06/au-parking-backend:latest au-parking-backend:current` (or keep the laptop-built image tagged as above). Updates are at most one per 5 minutes. The scripts and units installed by an update come from the new commit (fixed list), so the button keeps them current.
+
 
 ## Good to know
 

@@ -8,3 +8,4 @@ deploy/*.sh text eol=lf
 deploy/*.service text eol=lf
 deploy/*.timer text eol=lf
 mqtt/config/aclfile text eol=lf
+deploy/*.path text eol=lf
