@@ -2,7 +2,7 @@
 #   docker compose -f docker-compose.prod.yml up -d
 # Secrets come from .env next to this file (copy .env.example; .env is never committed).
 # parking-app:prod is built on a laptop and copied over: the Gradle build needs more memory
-# than the t3.micro has. Only Caddy (80/443) and Mosquitto (1883) are reachable from outside;
+# than the t3.micro has. Only Caddy (80/443) and Mosquitto (8883, TLS) are reachable from outside;
 # the database and the raw server port stay on the internal network.
 services:
   parking-app:
@@ -46,9 +46,10 @@ services:
     restart: unless-stopped
     command: mosquitto -c /mosquitto/config/mosquitto.prod.conf
     ports:
-      - "1883:1883" # keep closed in the AWS security group until real sensors need it
+      - "8883:8883" # TLS for sensors; plain 1883 stays inside the Docker network for the backend
     volumes:
       - ./mqtt/config:/mosquitto/config:ro
+      - /etc/au-parking/mqtt-certs:/mosquitto/certs:ro # filled by deploy/sync-mqtt-cert.sh
       - mqttdata:/mosquitto/data
 
   caddy:

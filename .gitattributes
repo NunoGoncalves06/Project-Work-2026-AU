@@ -4,3 +4,7 @@ Caddyfile text eol=lf
 docker-compose*.yml text eol=lf
 *.conf text eol=lf
 .env.example text eol=lf
+deploy/*.sh text eol=lf
+deploy/*.service text eol=lf
+deploy/*.timer text eol=lf
+mqtt/config/aclfile text eol=lf
