@@ -37,6 +37,8 @@ class FlywayFreshDatabaseTests {
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT version, type, success FROM flyway_schema_history ORDER BY installed_rank");
         assertEquals(2, rows.size());
+        // no APP_DB_PASSWORD in tests: afterMigrate.sql must skip creating the app login
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM pg_roles WHERE rolname = 'parking_app'", Integer.class));
         assertEquals("1", rows.get(0).get("version"));
         assertEquals("SQL", rows.get(0).get("type"));
         assertEquals("2", rows.get(1).get("version"));

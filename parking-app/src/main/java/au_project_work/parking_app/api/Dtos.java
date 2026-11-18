@@ -25,6 +25,14 @@ public final class Dtos {
     public record ForecastDto(Instant at, int freeSpots) {
     }
 
+    // what the dashboard needs to start the Cognito login; mode is cognito, off or unconfigured
+    public record AuthConfigDto(String mode, String region, String userPoolId, String clientId, String domain) {
+    }
+
+    // role is the highest of viewer, operator, admin
+    public record MeDto(String sub, String username, String role) {
+    }
+
     public record LotDetailDto(Integer id, AddressDto address, int totalSpots, long freeSpots, long carsInside,
                                List<RowDto> rows, List<ForecastDto> forecast) {
     }

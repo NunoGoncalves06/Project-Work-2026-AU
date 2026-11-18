@@ -2,6 +2,8 @@ package au_project_work.parking_app;
 
 import au_project_work.parking_app.repository.EntranceMeasurementRepository;
 import au_project_work.parking_app.repository.ParkingLotRepository;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.RequestDispatcher;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +20,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -50,6 +54,39 @@ class ParkingAppApplicationTests {
 
     @Test
     void contextLoads() {
+    }
+
+    @Test
+    void appRoutesNeedNoLogin() throws Exception {
+        for (String path : List.of("/parking-lots", "/parking-lots/1", "/parking-lots/stream",
+                "/parking-spot-measurements/all", "/entrance-measurements/all", "/entrance-measurements/sensor/1",
+                "/api/health", "/api/auth/config")) {
+            mvc.perform(get(path)).andExpect(status().isOk());
+        }
+        mvc.perform(head("/parking-lots")).andExpect(status().isOk());
+    }
+
+    // no COGNITO_* and no ADMIN_AUTH here, as on a server before the login is set up: shut, never open
+    @Test
+    void withoutLoginConfigAdminAndUnlistedRoutesAreRefused() throws Exception {
+        mvc.perform(get("/api/auth/config")).andExpect(jsonPath("$.mode").value("unconfigured"));
+        mvc.perform(get("/api/admin/me")).andExpect(status().isServiceUnavailable());
+        mvc.perform(get("/api/admin/me").header("Authorization", "Bearer a.b.c")).andExpect(status().isServiceUnavailable());
+        mvc.perform(post("/api/admin/lots")).andExpect(status().isServiceUnavailable());
+        mvc.perform(get("/nope")).andExpect(status().isServiceUnavailable());
+        mvc.perform(post("/parking-lots")).andExpect(status().isServiceUnavailable());
+    }
+
+    // Tomcat forwards a 404 (unknown lot) to /error: that must stay a 404 for the app, not become a refusal
+    @Test
+    void errorPageIsNotRefused() throws Exception {
+        mvc.perform(get("/error").with(request -> {
+                    request.setDispatcherType(DispatcherType.ERROR);
+                    request.setAttribute(RequestDispatcher.ERROR_STATUS_CODE, 404);
+                    return request;
+                }))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/error")).andExpect(status().isServiceUnavailable());
     }
 
     @Test

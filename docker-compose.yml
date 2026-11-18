@@ -18,6 +18,8 @@ services:
     - SPRING_DATASOURCE_USERNAME=postgres
     - SPRING_DATASOURCE_PASSWORD=password
     - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
+    # `ADMIN_AUTH=off docker compose up` opens the admin API without a login (anyone on your network too)
+    - ADMIN_AUTH
 
   db:
     image: postgres:16

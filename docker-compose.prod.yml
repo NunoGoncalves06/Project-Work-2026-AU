@@ -15,9 +15,18 @@ services:
         condition: service_started
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/parking-db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # the app reads and writes rows as parking_app; only the migrations run as the owner
+      SPRING_DATASOURCE_USERNAME: parking_app
+      SPRING_DATASOURCE_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in .env}
+      SPRING_FLYWAY_USER: postgres
+      SPRING_FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
+      # admin login; all four empty = the admin API refuses everything. ADMIN_AUTH is never passed here
+      COGNITO_REGION: ${COGNITO_REGION:-}
+      COGNITO_USER_POOL_ID: ${COGNITO_USER_POOL_ID:-}
+      COGNITO_CLIENT_ID: ${COGNITO_CLIENT_ID:-}
+      COGNITO_DOMAIN: ${COGNITO_DOMAIN:-}
       MQTT_USERNAME: ${MQTT_USERNAME:?set MQTT_USERNAME in .env}
       MQTT_PASSWORD: ${MQTT_PASSWORD:?set MQTT_PASSWORD in .env}
       # the 1 GB of RAM is shared with Postgres, Mosquitto and Caddy
