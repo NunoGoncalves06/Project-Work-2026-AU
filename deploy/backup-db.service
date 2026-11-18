@@ -1,0 +1,10 @@
+[Unit]
+Description=Back up the parking database
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ec2-user/au-parking
+# a root-owned copy (install -o root -m 755): root must not run a script ec2-user can edit
+ExecStart=/usr/local/sbin/backup-db.sh

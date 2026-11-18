@@ -1,0 +1,6 @@
+user parking-backend
+topic read carcounter/#
+
+user sensor
+topic write carcounter/spots/#
+topic write carcounter/entrance/#

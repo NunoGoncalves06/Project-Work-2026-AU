@@ -43,22 +43,21 @@ Errors: 404 = unknown id.
 
 Android app (`android-app/`):
 
-- Requirements: Android Studio (or the Android SDK at `~/Android/Sdk`) and the backend running via `docker compose up`
+- Requirements: Android Studio (or the Android SDK at `~/Android/Sdk`). No local backend needed: the app talks to the shared server on AWS, `https://au-parking.duckdns.org/` (see `docs/deploy-aws.md`)
 - Open the `android-app/` folder in Android Studio and run the `app` configuration on an emulator
 - Or from the command line: `cd android-app && ./gradlew :app:installDebug` with an emulator running
-- **On first launch, tap "Allow"** on the "nearby devices" dialog. Android 17 blocks apps from reaching local-network addresses such as the dev backend unless they have this permission, which only debug builds ask for. If you tapped "Don't allow", the app shows "Can't reach server". To fix it, re-enable the permission in the app's settings, or reinstall.
-- The debug app calls `http://localhost:8080/` on the phone/emulator. Forward that to your laptop with `adb reverse tcp:8080 tcp:8080` (works for emulator, USB and wireless debugging)
-  - the forward is lost every time the device reconnects or adb restarts: re-run the command then
-- **Backend on a teammate's machine instead?** Point the app straight at it, no `adb reverse` needed. Both machines have to be on the same wifi, and the teammate has to run `docker compose up`:
+- **Testing against your own local backend** (`docker compose up`) instead: point the app at it and forward the device's localhost to your laptop with `adb reverse` (works for emulator, USB and wireless debugging):
 
   ```
-  cd android-app && ./gradlew :app:installDebug -PapiBaseUrl=http://192.168.178.20:8080/
+  cd android-app && ./gradlew :app:installDebug -PapiBaseUrl=http://localhost:8080/
+  adb reverse tcp:8080 tcp:8080
   ```
 
-  Replace the IP with the one of the machine running Docker. To not retype it every time, put `apiBaseUrl=http://192.168.178.20:8080/` in your own `~/.gradle/gradle.properties` (never committed). Debug builds allow plain http to any host for exactly this; release builds still refuse cleartext.
+  The forward is lost every time the device reconnects or adb restarts: re-run it then. To not retype the URL, put `apiBaseUrl=http://localhost:8080/` in your own `~/.gradle/gradle.properties` (never committed). Debug builds allow plain http to any host for this; release builds refuse cleartext.
+- **On first launch against a local backend, tap "Allow"** on the "nearby devices" dialog. Android 17 blocks apps from reaching local-network addresses unless they have this permission, which only debug builds ask for. If you tapped "Don't allow", re-enable it in the app's settings, or reinstall.
 - App says "Can't reach the server"? Check in this order:
-  1. backend up: `curl localhost:8080/parking-lots` (if not: `docker compose up -d`)
-  2. forward there: `adb reverse --list` (if empty: `adb reverse tcp:8080 tcp:8080`)
-- Always run the **debug** build. Release builds are not configured yet: there is no real server URL and no signing
+  1. server up: `curl https://au-parking.duckdns.org/parking-lots` (local backend: `curl localhost:8080/parking-lots`, and if down `docker compose up -d`)
+  2. local backend only: forward there: `adb reverse --list` (if empty: `adb reverse tcp:8080 tcp:8080`)
+- Run the **debug** build. Release builds now point at the AWS server too, but have no signing config yet
 - Low on RAM? Start the emulator with `-memory 1536 -gpu swiftshader_indirect` and stop the Gradle daemons first (`./gradlew --stop`)
 - Unit tests: `cd android-app && ./gradlew :app:testDebugUnitTest`

@@ -1,0 +1,9 @@
+[Unit]
+Description=Hourly sync of the MQTT TLS certificate
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

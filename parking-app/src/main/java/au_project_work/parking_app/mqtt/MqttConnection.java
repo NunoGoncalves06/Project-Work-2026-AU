@@ -1,6 +1,7 @@
 package au_project_work.parking_app.mqtt;
 
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.integration.annotation.Router;
@@ -18,6 +19,13 @@ import org.springframework.messaging.handler.annotation.Header;
 @Configuration
 @EnableIntegration
 public class MqttConnection {
+
+    // MQTT_USERNAME / MQTT_PASSWORD in the environment (docker-compose.prod.yml)
+    @Value("${mqtt.username:}")
+    private String mqttUsername;
+
+    @Value("${mqtt.password:}")
+    private String mqttPassword;
 
     // Shared input channel
     @Bean
@@ -48,6 +56,12 @@ public class MqttConnection {
         // the broker keeps this client's subscriptions and queues QoS 1 messages while the
         // backend is down (restart, rebuild), and delivers them when it reconnects
         options.setCleanSession(false);
+        // the production broker refuses anonymous clients; locally both stay empty and the
+        // dev broker (mqtt/config/mosquitto.conf) lets us in without a login
+        if (!mqttUsername.isEmpty()) {
+            options.setUserName(mqttUsername);
+            options.setPassword(mqttPassword.toCharArray());
+        }
         DefaultMqttPahoClientFactory factory = new DefaultMqttPahoClientFactory();
         factory.setConnectionOptions(options);
         return factory;
