@@ -28,6 +28,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * How often to refetch on our own. While the server's update stream is up it only has to catch
@@ -63,7 +65,9 @@ fun <T> pollingState(
     var last: Pair<T, Long>? = null
     return channelFlow {
         if (last == null) last = cached()?.also { (data, at) -> send(UiState.Content(data, fetchedAt = at)) }
-        suspend fun load() {
+        // timer and refresh loads must not overlap: an older answer could land last and be stamped fresh
+        val lock = Mutex()
+        suspend fun load() = lock.withLock {
             val next = try {
                 val data = fetch()
                 val at = clock()

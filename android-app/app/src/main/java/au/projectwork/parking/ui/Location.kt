@@ -30,6 +30,8 @@ import au.projectwork.parking.ui.lots.Here
 private val LOCATION = listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
 private const val LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
 
+fun Context.locationAllowed() = LOCATION.any(::granted)
+
 private fun Context.granted(permission: String) =
     ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 
@@ -61,6 +63,9 @@ fun rememberLocation(onHere: (Here) -> Unit): () -> Unit {
         // after a denial Android shows the rationale flag; once it's false again the dialog won't appear
         if (activity != null && LOCATION.any { ActivityCompat.shouldShowRequestPermissionRationale(activity, it) }) {
             launcher.launch(LOCATION.toTypedArray())
+        } else if (context.locationAllowed()) {
+            // allowed already, so what's missing is the device's location switch
+            context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
         } else {
             context.startActivity(
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),

@@ -3,7 +3,6 @@ package au.projectwork.parking
 import android.app.UiModeManager
 import android.content.ComponentName
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -30,11 +29,14 @@ import au.projectwork.parking.ui.lot.LotDetailViewModel
 import au.projectwork.parking.ui.lots.LotListScreen
 import au.projectwork.parking.ui.lots.LotListViewModel
 import au.projectwork.parking.ui.theme.ParkingTheme
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
 
-    private val container by lazy { AppContainer(this) }
+    // one per process: a recreated activity must not build a second OkHttp client and update stream
+    private val container get() = shared ?: AppContainer(applicationContext).also { shared = it }
 
     /** The launcher icon the current theme wants; swapped in onStop (see there). */
     private var iconDark: Boolean? = null
@@ -51,12 +53,14 @@ class MainActivity : ComponentActivity() {
                         if (picked) UiModeManager.MODE_NIGHT_YES else UiModeManager.MODE_NIGHT_NO,
                     )
                 }
-                iconDark = picked ?: systemDark()
+                iconDark = picked
             }
         }
+        // read the pick before the first frame: below Android 12 nothing else tells it (a tiny DataStore read)
+        val stored = runBlocking { container.theme.dark.first() }
         setContent {
             // the sun/moon choice wins; before the first tap the app follows the system theme
-            val picked by container.theme.dark.collectAsState(initial = null)
+            val picked by container.theme.dark.collectAsState(initial = stored)
             val dark = picked ?: isSystemInDarkTheme()
             val scope = rememberCoroutineScope()
             LaunchedEffect(dark) {
@@ -94,9 +98,6 @@ class MainActivity : ComponentActivity() {
         if (!isChangingConfigurations) iconDark?.let(::showLauncherIcon)
     }
 
-    private fun systemDark() =
-        resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-
     /**
      * Turns on the launcher entry whose icon matches the theme (B1 day / B2 night ticket) and turns the other off.
      * Does nothing when it already matches, so the launcher is only disturbed when the theme really changed.
@@ -113,5 +114,9 @@ class MainActivity : ComponentActivity() {
         // turn the new one on first, so there is never a moment without a launcher entry
         packageManager.setComponentEnabledSetting(on, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
         packageManager.setComponentEnabledSetting(off, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+    }
+
+    private companion object {
+        var shared: AppContainer? = null
     }
 }

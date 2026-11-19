@@ -44,6 +44,7 @@ import au.projectwork.parking.ui.NavigationArrow
 import au.projectwork.parking.ui.UiState
 import au.projectwork.parking.ui.countInk
 import au.projectwork.parking.ui.isStale
+import au.projectwork.parking.ui.locationAllowed
 import au.projectwork.parking.ui.rememberLocation
 import au.projectwork.parking.ui.rememberNow
 import au.projectwork.parking.ui.PaintedBays
@@ -122,7 +123,7 @@ fun LotListScreen(viewModel: LotListViewModel, onLotClick: (Int) -> Unit, dark: 
                                     color = TicketColors.current.faded,
                                     modifier = Modifier.padding(start = 4.dp),
                                 )
-                                TextButton(onClick = askLocation) { Text("Allow location", color = TicketColors.current.ink) }
+                                TextButton(onClick = askLocation) { Text(if (LocalContext.current.locationAllowed()) "Turn on location" else "Allow location", color = TicketColors.current.ink) }
                             }
                         }
                     }
