@@ -1,6 +1,11 @@
 package au.projectwork.parking
 
+import android.app.UiModeManager
+import android.content.ComponentName
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
 import androidx.activity.ComponentActivity
@@ -11,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -30,9 +36,24 @@ class MainActivity : ComponentActivity() {
 
     private val container by lazy { AppContainer(this) }
 
+    /** The launcher icon the current theme wants; swapped in onStop (see there). */
+    private var iconDark: Boolean? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        lifecycleScope.launch {
+            container.theme.dark.collect { picked ->
+                // Android 12+ draws the launch screen before the app runs: telling it the app's choice makes the
+                // launch screen use the matching icon and ground (values-night). Before the first pick: follow the system.
+                if (picked != null && Build.VERSION.SDK_INT >= 31) {
+                    getSystemService(UiModeManager::class.java).setApplicationNightMode(
+                        if (picked) UiModeManager.MODE_NIGHT_YES else UiModeManager.MODE_NIGHT_NO,
+                    )
+                }
+                iconDark = picked ?: systemDark()
+            }
+        }
         setContent {
             // the sun/moon choice wins; before the first tap the app follows the system theme
             val picked by container.theme.dark.collectAsState(initial = null)
@@ -64,5 +85,33 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // Android closes the app when the launcher entry it was opened from is turned off, so swap the icon only
+        // once the user has left the app (not during the recreate a theme change causes)
+        if (!isChangingConfigurations) iconDark?.let(::showLauncherIcon)
+    }
+
+    private fun systemDark() =
+        resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+
+    /**
+     * Turns on the launcher entry whose icon matches the theme (B1 day / B2 night ticket) and turns the other off.
+     * Does nothing when it already matches, so the launcher is only disturbed when the theme really changed.
+     * shortcut: a launcher may drop a home-screen shortcut to the entry turned off; the app drawer always has it.
+     */
+    private fun showLauncherIcon(dark: Boolean) {
+        val light = ComponentName(this, "$packageName.LauncherLight")
+        val night = ComponentName(this, "$packageName.LauncherDark")
+        val (on, off) = if (dark) night to light else light to night
+        val state = packageManager.getComponentEnabledSetting(on)
+        val isOn = state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED ||
+            (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && on == light) // manifest default: light on
+        if (isOn) return
+        // turn the new one on first, so there is never a moment without a launcher entry
+        packageManager.setComponentEnabledSetting(on, PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
+        packageManager.setComponentEnabledSetting(off, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
     }
 }

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ launch screen: the matching launcher icon on the matching ground -->
+    <style name="Theme.AuParking" parent="Base.Theme.AuParking">
+        <item name="android:windowSplashScreenBackground">@color/ticket_ground</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+    </style>
+</resources>
