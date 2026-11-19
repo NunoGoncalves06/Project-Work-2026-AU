@@ -55,7 +55,7 @@ public class SpotMeasurementListener {
                 }
                 // updates the spot's current state as well as the history, so the app sees
                 // the change
-                parkingSpotMeasurementService.record(deviceId.asInt(), occupied.asBoolean());
+                DbRetry.run(() -> parkingSpotMeasurementService.record(deviceId.asInt(), occupied.asBoolean()));
             }
         };
     }
