@@ -267,4 +267,38 @@ class SimulatorTests {
         assertTrue(occupied(real));
         assertFalse(occupied(none));
     }
+
+    // runs the sim on a one-spot lot until the spot was touched, then stops
+    private void runAndStop(int lot, int spot, Instant startsAt, Runnable duringRun) {
+        FakeClock clock = new FakeClock();
+        clock.now = startsAt;
+        SimulatorService s = new SimulatorService(jdbc, measurements, scheduler, clock, new Random(3));
+        s.start(lot, 1.0, 60);
+        for (int i = 0; i < 30; i++) {
+            s.tick();
+        }
+        assertTrue(s.status().changes() > 0);
+        duringRun.run();
+        s.stop();
+    }
+
+    @Test
+    void stopRestoresTheValueFromBeforeTheRunNotAnOlderReading() {
+        int row = newRow(newLot());
+        int lot = jdbc.queryForObject("SELECT parking_lot_id FROM parking_rows WHERE parking_row_id = ?", Integer.class, row);
+        int spot = newSpot(row, true);
+        measurements.record(sensorOf(spot), true); // a real reading from before the run (the sensor's old spot, say)
+        jdbc.update("UPDATE parking_spots SET occupied = false WHERE parking_spot_id = ?", spot); // the spot itself was free
+        runAndStop(lot, spot, Instant.now().plusSeconds(3600), () -> { });
+        assertFalse(occupied(spot));
+    }
+
+    @Test
+    void stopKeepsARealReadingMadeDuringTheRun() {
+        int row = newRow(newLot());
+        int lot = jdbc.queryForObject("SELECT parking_lot_id FROM parking_rows WHERE parking_row_id = ?", Integer.class, row);
+        int spot = newSpot(row, true);
+        runAndStop(lot, spot, Instant.now().minusSeconds(3600), () -> measurements.record(sensorOf(spot), true));
+        assertTrue(occupied(spot));
+    }
 }
