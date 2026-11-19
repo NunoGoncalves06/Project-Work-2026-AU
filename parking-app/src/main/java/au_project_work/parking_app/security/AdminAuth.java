@@ -33,6 +33,10 @@ public class AdminAuth {
         this.userPoolId = userPoolId.trim();
         this.clientId = clientId.trim();
         this.domain = domain.trim();
+        // the Caddyfile and auth.js both put "https://" in front themselves
+        if (this.domain.contains("/") || this.domain.contains(":")) {
+            throw new IllegalStateException("COGNITO_DOMAIN must be the host only, without https:// (e.g. x.auth.eu-north-1.amazoncognito.com)");
+        }
         long set = Stream.of(this.region, this.userPoolId, this.clientId, this.domain).filter(s -> !s.isEmpty()).count();
         // half a login config is a typo in .env: refuse to start rather than guess
         if (set != 0 && set != 4) {

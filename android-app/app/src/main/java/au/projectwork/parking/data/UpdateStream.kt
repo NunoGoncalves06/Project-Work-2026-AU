@@ -72,12 +72,12 @@ class SseUpdateStream(
         // connection flipped [connected] off under the other, which then polled every 5 s
         .shareIn(scope, SharingStarted.WhileSubscribed())
 
-    /** Emits true per change event, false on connect; completes when the stream drops. */
+    /** Emits true on connect and per change event; completes when the stream drops. */
     private fun connect(): Flow<Boolean> = callbackFlow {
         val listener = object : EventSourceListener() {
             override fun onOpen(eventSource: EventSource, response: Response) {
                 isConnected = true
-                trySend(false)
+                trySend(true) // changes during the drop were missed: have screens refetch once
             }
 
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {

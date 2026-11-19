@@ -21,9 +21,6 @@ REST API:
 |---|---|---|---|
 | GET | `/parking-lots` | | all lots with totalSpots, freeSpots, carsInside, address |
 | GET | `/parking-lots/{id}` | | one lot plus rows and spots (`occupied` per spot), and `forecast`: free spots usually seen at each of the next 168 hours (a week) (same weekday, last 4 weeks of spot history; empty without history) |
-| GET | `/parking-spot-measurements/all` | | spot sensor history |
-| GET | `/entrance-measurements/all` | | entrance history |
-| GET | `/entrance-measurements/sensor/{id}` | | entrance history of one sensor |
 | GET | `/parking-lots/stream` | | server-sent events: `changed` when the data changed, `keep-alive` otherwise. Carries no data; the app refetches the GETs above when it arrives |
 
 Watch the stream from a terminal with `curl -N localhost:8080/parking-lots/stream`.

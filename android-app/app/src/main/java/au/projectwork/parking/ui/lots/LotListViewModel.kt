@@ -12,6 +12,7 @@ import au.projectwork.parking.ui.UiState
 import au.projectwork.parking.ui.pollPeriodMs
 import au.projectwork.parking.ui.pollingState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -56,8 +57,14 @@ class LotListViewModel(
             // last fetch, which only makes a cold-start stamp look older, never fresher
             onFetched = { lots, at -> if (lots != lastSaved) store.saveLots(lots, at).also { lastSaved = lots } },
         ) {
-            repository.getLots().also { lots -> _heroDetail.value = fetchHeroDetail(lots) }
+            repository.getLots().also { lots ->
+                // don't make the list wait for the strip; only the newest fetch may set it
+                heroJob?.cancel()
+                heroJob = viewModelScope.launch { _heroDetail.value = fetchHeroDetail(lots) }
+            }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), UiState.Loading)
+
+    private var heroJob: Job? = null
 
     private suspend fun fetchHeroDetail(lots: List<LotSummary>): LotDetail? {
         val hero = pickHero(lots, favourites.value, _here.value) ?: return null
@@ -66,8 +73,7 @@ class LotListViewModel(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            // the bay strip is a bonus; keep the last one for the same lot rather than failing the list
-            _heroDetail.value?.takeIf { it.id == hero.row.lot.id }
+            null // the bay strip is a bonus; no strip beats one older than the count above it
         }
     }
 

@@ -52,7 +52,7 @@ public class EntranceMeasurementListener {
                     throw new IllegalArgumentException(
                             "expected an integer entrance_sensor_id and an integer dir");
                 }
-                entranceMeasurementService.record(entranceSensorId.asInt(), measuredValue.asInt());
+                DbRetry.run(() -> entranceMeasurementService.record(entranceSensorId.asInt(), measuredValue.asInt()));
             }
         };
     }

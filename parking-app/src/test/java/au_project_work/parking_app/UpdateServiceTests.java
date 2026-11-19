@@ -177,4 +177,17 @@ class UpdateServiceTests {
         assertEquals("Unavailable", none.status().state());
         assertEquals(Result.UNAVAILABLE, none.request());
     }
+
+    @Test
+    void twoSimultaneousRequestsCreateOnlyOne() throws Exception {
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        var go = new java.util.concurrent.CountDownLatch(1);
+        var a = pool.submit(() -> { go.await(); return service.request(); });
+        var b = pool.submit(() -> { go.await(); return service.request(); });
+        go.countDown();
+        var results = java.util.List.of(a.get(), b.get());
+        pool.shutdown();
+        assertEquals(1, results.stream().filter(r -> r == Result.CREATED).count());
+        assertEquals(1, results.stream().filter(r -> r == Result.BUSY).count());
+    }
 }

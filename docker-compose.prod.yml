@@ -35,6 +35,7 @@ services:
       COGNITO_DOMAIN: ${COGNITO_DOMAIN:-}
       MQTT_USERNAME: ${MQTT_USERNAME:?set MQTT_USERNAME in .env}
       MQTT_PASSWORD: ${MQTT_PASSWORD:?set MQTT_PASSWORD in .env}
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID:-} # optional, see .env.example
       # the 1 GB of RAM is shared with Postgres, Mosquitto and Caddy
       JAVA_TOOL_OPTIONS: -Xmx256m -Xms128m
       ADMIN_UPDATE_DIR: /update

@@ -1,7 +1,10 @@
 package au_project_work.parking_app;
 
+import au_project_work.parking_app.api.Dtos.CreateLotRequest;
+import au_project_work.parking_app.api.ForecastCache;
 import au_project_work.parking_app.repository.EntranceMeasurementRepository;
 import au_project_work.parking_app.repository.ParkingLotRepository;
+import au_project_work.parking_app.service.AdminService;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.RequestDispatcher;
 import java.util.List;
@@ -43,6 +46,12 @@ class ParkingAppApplicationTests {
     private ParkingLotRepository parkingLotRepository;
 
     @Autowired
+    private ForecastCache forecastCache;
+
+    @Autowired
+    private AdminService adminService;
+
+    @Autowired
     @Qualifier("mqttInputChannel")
     private MessageChannel mqttInputChannel;
 
@@ -59,7 +68,6 @@ class ParkingAppApplicationTests {
     @Test
     void appRoutesNeedNoLogin() throws Exception {
         for (String path : List.of("/parking-lots", "/parking-lots/1", "/parking-lots/stream",
-                "/parking-spot-measurements/all", "/entrance-measurements/all", "/entrance-measurements/sensor/1",
                 "/api/health", "/api/auth/config")) {
             mvc.perform(get(path)).andExpect(status().isOk());
         }
@@ -87,15 +95,6 @@ class ParkingAppApplicationTests {
                 }))
                 .andExpect(status().isNotFound());
         mvc.perform(get("/error")).andExpect(status().isServiceUnavailable());
-    }
-
-    @Test
-    void entranceMeasurementsUseCamelCaseKeys() throws Exception {
-        mvc.perform(get("/entrance-measurements/sensor/1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].entranceMeasurementId").value(1))
-                .andExpect(jsonPath("$[0].entranceSensorId").value(1))
-                .andExpect(jsonPath("$[0].measuredValue").value(1));
     }
 
     @Test
@@ -175,9 +174,10 @@ class ParkingAppApplicationTests {
 
     @Test
     void forecastAveragesTheLastFourWeeks() throws Exception {
+        forecastCache.clear(); // the forecast is cached per hour and this test changes the history in between
         // seed history (October) is older than all 4 sampled weeks: spots 1-4 taken in each
         mvc.perform(get("/parking-lots/1"))
-                .andExpect(jsonPath("$.forecast.length()").value(168))
+                .andExpect(jsonPath("$.forecast.length()").value(org.hamcrest.Matchers.oneOf(167, 168))) // 167 in the spring-forward week (two hours merge)
                 .andExpect(jsonPath("$.forecast[0].at").isString())
                 .andExpect(jsonPath("$.forecast[0].freeSpots").value(12));
 
@@ -187,6 +187,7 @@ class ParkingAppApplicationTests {
                 INSERT INTO parking_spot_measurements (parking_spot_sensor_id, occupied, measured_at)
                 VALUES (15, true, now() - interval '15 days'), (16, true, now() - interval '15 days')
                 """);
+        forecastCache.clear();
         try {
             mvc.perform(get("/parking-lots/1"))
                     .andExpect(jsonPath("$.forecast[0:24].freeSpots").value(org.hamcrest.Matchers.everyItem(
@@ -195,6 +196,7 @@ class ParkingAppApplicationTests {
             mvc.perform(get("/parking-lots")).andExpect(jsonPath("$[0].forecast").doesNotExist());
         } finally {
             jdbc.update("DELETE FROM parking_spot_measurements WHERE measured_at > now() - interval '16 days'");
+            forecastCache.clear();
         }
     }
 
@@ -296,6 +298,26 @@ class ParkingAppApplicationTests {
             assertEquals(before, parkingLotRepository.forecast(1).stream().map(h -> h.getFreeSpots()).toList());
         } finally {
             jdbc.update("DELETE FROM parking_spot_measurements WHERE simulated");
+        }
+    }
+
+    @Test
+    void sensorMovedToAnotherLotLeavesItsOldHistoryBehind() {
+        // sensor 16 has history in lot 1; its spot is archived and the sensor is attached to a spot of a new lot
+        int lot = adminService.createLot(new CreateLotRequest("Teststreet", "1", "Aarhus", 56.0, 10.0));
+        int row = adminService.addRow(lot);
+        adminService.archiveSpot(16);
+        int spot = adminService.addSpot(row, 16);
+        try {
+            assertEquals(List.of(), parkingLotRepository.forecast(lot));
+            assertNotEquals(0, parkingLotRepository.forecast(1).size()); // lot 1 keeps its other spots' forecast
+        } finally {
+            jdbc.update("UPDATE parking_spot_sensors SET parking_spot_id = 16, attached_at = NULL WHERE parking_spot_sensor_id = 16");
+            jdbc.update("UPDATE parking_spots SET archived_at = NULL WHERE parking_spot_id = 16");
+            jdbc.update("DELETE FROM parking_spots WHERE parking_spot_id = ?", spot);
+            jdbc.update("DELETE FROM parking_rows WHERE parking_row_id = ?", row);
+            jdbc.update("DELETE FROM parking_lots WHERE parking_lot_id = ?", lot);
+            forecastCache.clear();
         }
     }
 }

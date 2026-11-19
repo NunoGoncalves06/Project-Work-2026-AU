@@ -1,6 +1,8 @@
 package au_project_work.parking_app.api;
 
 import au_project_work.parking_app.repository.ParkingLotRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -22,6 +24,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @Component
 public class ParkingUpdates {
 
+    private static final Logger log = LoggerFactory.getLogger(ParkingUpdates.class);
+
     private static final long CHECK_MS = 2_000;
     /** 15 quiet checks, so a ping roughly every 30 s. */
     private static final int KEEP_ALIVE_TICKS = 15;
@@ -32,6 +36,7 @@ public class ParkingUpdates {
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
     private volatile String lastFingerprint;
     private int ticksSinceKeepAlive;
+    private boolean failing; // so a database outage is logged once, not every 2 s
 
     public ParkingUpdates(ParkingLotRepository parkingLotRepository) {
         this.parkingLotRepository = parkingLotRepository;
@@ -66,9 +71,17 @@ public class ParkingUpdates {
         try {
             current = parkingLotRepository.fingerprint();
         } catch (Exception e) {
+            if (!failing) {
+                log.warn("Change check failed, will keep retrying quietly", e);
+                failing = true;
+            }
             // database hiccup: keep the streams open, try again next tick. The apps still
             // have their own slow poll as a backstop
             return;
+        }
+        if (failing) {
+            log.info("Change check works again");
+            failing = false;
         }
         String previous = lastFingerprint;
         lastFingerprint = current;

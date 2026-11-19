@@ -2,14 +2,10 @@ package au_project_work.parking_app.repository;
 
 import au_project_work.parking_app.model.EntranceMeasurement;
 
-import java.util.List;
-
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.CrudRepository;
 
 public interface EntranceMeasurementRepository extends CrudRepository<EntranceMeasurement, Long> {
-
-    List<EntranceMeasurement> findAllByEntranceSensorIdOrderByMeasuredAtAsc(Integer entranceSensorId);
 
     // Sum of every entrance reading ever. A missed or repeated sensor message stays in the sum
     // for good; carsInsideResyncedAt4am fixes that. Clamped at 0 so a missed entry can't show

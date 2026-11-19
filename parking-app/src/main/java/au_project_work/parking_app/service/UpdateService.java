@@ -108,8 +108,8 @@ public class UpdateService {
         }
     }
 
-    /** Creates the request file; create-new, so two clicks cannot both succeed. */
-    public Result request() {
+    /** Creates the request file; synchronized (one JVM), so two simultaneous clicks cannot both succeed. */
+    public synchronized Result request() {
         if (!Files.isDirectory(inbox)) {
             return Result.UNAVAILABLE;
         }

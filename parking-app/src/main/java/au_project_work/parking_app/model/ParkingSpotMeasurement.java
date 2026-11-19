@@ -33,10 +33,6 @@ public class ParkingSpotMeasurement {
     protected ParkingSpotMeasurement() {
     }
 
-    public ParkingSpotMeasurement(Integer parkingSpotSensorId, Boolean occupied, Instant measuredAt) {
-        this(parkingSpotSensorId, occupied, measuredAt, false);
-    }
-
     public ParkingSpotMeasurement(Integer parkingSpotSensorId, Boolean occupied, Instant measuredAt, boolean simulated) {
         this.parkingSpotSensorId = parkingSpotSensorId;
         this.occupied = occupied;

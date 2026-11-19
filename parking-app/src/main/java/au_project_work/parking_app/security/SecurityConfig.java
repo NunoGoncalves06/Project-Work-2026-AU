@@ -52,7 +52,7 @@ public class SecurityConfig {
     static final List<String> ROLES = List.of("viewer", "operator", "admin");
 
     private static final String[] PUBLIC_READS = {"/parking-lots", "/parking-lots/{id}", "/parking-lots/stream",
-            "/parking-spot-measurements/**", "/entrance-measurements/**", "/api/health", "/api/auth/config", "/admin/**"};
+            "/api/health", "/api/auth/config", "/admin/**"};
 
     private static final RequestMatcher ADMIN_API = PathPatternRequestMatcher.withDefaults().matcher("/api/admin/**");
 

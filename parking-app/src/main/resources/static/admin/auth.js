@@ -1,4 +1,4 @@
-// Cognito hosted login: authorization code + PKCE, public client (no secret). See HANDOFF.md §8.
+// Cognito hosted login: authorization code + PKCE, public client (no secret). See docs/admin-dashboard.md (Cognito section).
 // Tokens live in sessionStorage only: gone when the tab closes, no cookies, so nothing to forge.
 
 const TOKENS = 'au-admin-tokens';
@@ -19,8 +19,8 @@ export async function loadConfig() {
 }
 
 const redirectUri = () => location.origin + '/admin/';
-// the domain may be stored with or without its scheme
-const hostedUi = () => (/^https:\/\//.test(config.domain) ? config.domain : 'https://' + config.domain).replace(/\/+$/, '');
+// config.domain is the host only (AdminAuth refuses a scheme or path)
+const hostedUi = () => 'https://' + config.domain;
 
 function base64url(bytes) {
   let s = '';

@@ -36,3 +36,6 @@ ON CONFLICT DO NOTHING;
 SELECT setval(pg_get_serial_sequence('parking_lots', 'parking_lot_id'), coalesce(max(parking_lot_id), 0) + 1, false) FROM parking_lots;
 SELECT setval(pg_get_serial_sequence('parking_rows', 'parking_row_id'), coalesce(max(parking_row_id), 0) + 1, false) FROM parking_rows;
 SELECT setval(pg_get_serial_sequence('parking_spots', 'parking_spot_id'), coalesce(max(parking_spot_id), 0) + 1, false) FROM parking_spots;
+
+-- the inserts above set explicit ids, so move the sequence past them
+SELECT setval(pg_get_serial_sequence('addresses','address_id'), coalesce(max(address_id),0)+1, false) FROM addresses;

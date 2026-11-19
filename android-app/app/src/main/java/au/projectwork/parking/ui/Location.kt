@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.location.LocationManagerCompat
@@ -29,6 +30,11 @@ import au.projectwork.parking.ui.lots.Here
 
 private val LOCATION = listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
 private const val LOCAL_NETWORK = "android.permission.ACCESS_LOCAL_NETWORK"
+
+fun Context.locationAllowed() = LOCATION.any(::granted)
+
+/** The device's location switch (separate from the app's permission). */
+fun Context.locationOn() = getSystemService(LocationManager::class.java)?.let(LocationManagerCompat::isLocationEnabled) == true
 
 private fun Context.granted(permission: String) =
     ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
@@ -45,12 +51,16 @@ fun rememberLocation(onHere: (Here) -> Unit): () -> Unit {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         if (LOCATION.any(context::granted)) requestHere(context, onHere)
     }
+    // on every return to the screen (also from the location settings): look again where the phone is
+    LifecycleResumeEffect(Unit) {
+        if (LOCATION.any(context::granted)) requestHere(context, onHere)
+        onPauseOrDispose { }
+    }
     LaunchedEffect(Unit) {
         val wanted = buildList {
             addAll(LOCATION.filterNot(context::granted))
             if (BuildConfig.DEBUG && Build.VERSION.SDK_INT >= 37 && !context.granted(LOCAL_NETWORK)) add(LOCAL_NETWORK)
         }
-        if (LOCATION.any(context::granted)) requestHere(context, onHere)
         if (wanted.isNotEmpty() && !asked) {
             asked = true
             launcher.launch(wanted.toTypedArray())
@@ -61,6 +71,9 @@ fun rememberLocation(onHere: (Here) -> Unit): () -> Unit {
         // after a denial Android shows the rationale flag; once it's false again the dialog won't appear
         if (activity != null && LOCATION.any { ActivityCompat.shouldShowRequestPermissionRationale(activity, it) }) {
             launcher.launch(LOCATION.toTypedArray())
+        } else if (context.locationAllowed()) {
+            // allowed already, so what's missing is the device's location switch
+            context.startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
         } else {
             context.startActivity(
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),

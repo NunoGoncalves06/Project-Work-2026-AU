@@ -48,10 +48,12 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLot, Integer>
      * state at that time on the same weekday in each of the last 4 weeks (from the spot
      * history), averaged. Weeks before the history starts are skipped, so a lot with no
      * history gets an empty list instead of "all free".
+     * Readings from before a sensor was moved to its spot (attached_at) are ignored. In the
+     * spring-forward week the nonexistent local hour merges into the next one: 167 rows, not 168.
      */
     @Query(value = """
             WITH spots AS (
-                SELECT ss.parking_spot_sensor_id AS sensor_id
+                SELECT ss.parking_spot_sensor_id AS sensor_id, ss.attached_at
                 FROM parking_spot_sensors ss
                 JOIN parking_spots sp ON sp.parking_spot_id = ss.parking_spot_id
                 JOIN parking_rows r ON r.parking_row_id = sp.parking_row_id
@@ -67,20 +69,21 @@ public interface ParkingLotRepository extends JpaRepository<ParkingLot, Integer>
                 FROM hours, generate_series(1, 4) w
             ),
             occupied AS (
-                SELECT s.local_hour,
+                SELECT s.local_hour AT TIME ZONE 'Europe/Copenhagen' AS at,
                        (SELECT count(*) FROM spots WHERE (
                             SELECT m.occupied FROM parking_spot_measurements m
                             WHERE m.parking_spot_sensor_id = spots.sensor_id AND NOT m.simulated AND m.measured_at <= s.t
+                              AND m.measured_at >= coalesce(spots.attached_at, '-infinity')
                             ORDER BY m.measured_at DESC LIMIT 1)) AS n
                 FROM samples s
-                WHERE s.t >= (SELECT min(m.measured_at) FROM parking_spot_measurements m
-                              WHERE NOT m.simulated AND m.parking_spot_sensor_id IN (SELECT sensor_id FROM spots))
+                WHERE s.t >= (SELECT min(m.measured_at) FROM parking_spot_measurements m JOIN spots ON spots.sensor_id = m.parking_spot_sensor_id
+                              WHERE NOT m.simulated AND m.measured_at >= coalesce(spots.attached_at, '-infinity'))
             )
-            SELECT local_hour AT TIME ZONE 'Europe/Copenhagen' AS at,
+            SELECT at,
                    round((SELECT count(*) FROM spots) - avg(n))::int AS "freeSpots"
             FROM occupied
-            GROUP BY local_hour
-            ORDER BY local_hour
+            GROUP BY at
+            ORDER BY at
             """, nativeQuery = true)
     List<HourForecast> forecast(Integer parkingLotId);
 }

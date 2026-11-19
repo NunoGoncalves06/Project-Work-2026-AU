@@ -14,8 +14,8 @@ android {
         applicationId = "au.projectwork.parking"
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "1.3"
     }
 
     // Default: the shared server on AWS (docs/deploy-aws.md), so a plain build shows real data.
@@ -30,12 +30,28 @@ android {
         ?.let { if (it.endsWith("/")) it else "$it/" }
         ?: "https://au-parking.duckdns.org/"
 
+    // Release signing key: given only to CI (.github/workflows/android-release.yml, GitHub secrets) or to a
+    // local build that sets the same variables. The key itself is kept outside the repo. Without them the
+    // release build is unsigned, as before.
+    val releaseKeystore = System.getenv("ANDROID_KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEYSTORE_PASSWORD") // PKCS12: one password for both
+            }
+        }
+    }
+
     buildTypes {
         debug {
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         }
         release {
             // https, so release's no-cleartext rule (src/main/res/xml/network_security_config.xml) allows it
+            if (releaseKeystore != null) signingConfig = signingConfigs.getByName("release")
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         }
     }
@@ -58,10 +74,8 @@ dependencies {
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.core)
-    debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)
