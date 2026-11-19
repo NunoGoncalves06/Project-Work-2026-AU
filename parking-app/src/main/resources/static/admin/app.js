@@ -549,7 +549,10 @@ async function pageUpdate() {
   const button = h('button', { class: 'update-btn', type: 'button', 'aria-describedby': 'upd-help' });
   const help = h('p', { id: 'upd-help', class: 'help', 'aria-live': 'polite' });
   const facts = h('dl', { class: 'facts' });
-  box.append(field('Server version'), button, help, facts, tear());
+  const problem = h('p', { class: 'update-error', role: 'alert', hidden: true });
+  const logText = h('pre', { class: 'update-log', tabindex: '0', text: '' });
+  const logBox = h('details', { class: 'update-logs' }, h('summary', { text: 'Show logs' }), logText);
+  box.append(field('Server version'), button, problem, help, facts, can('admin') && logBox, tear());
 
   let s = null;
   let poll = null;
@@ -574,8 +577,20 @@ async function pageUpdate() {
       h('dt', {}, 'Running'), h('dd', { class: 'mono', text: shortSha(s.localSha) }),
       h('dt', {}, 'Latest on main'), h('dd', { class: 'mono', text: shortSha(s.remoteSha) }),
       s.finishedAt && [h('dt', {}, 'Last update'), h('dd', { text: new Date(s.finishedAt).toLocaleString('en-GB') })],
-      s.message && [h('dt', {}, 'Message'), h('dd', { text: s.message })]);
+      s.message && state !== 'ErrorUpdating' && [h('dt', {}, 'Message'), h('dd', { text: s.message })]);
+    problem.hidden = !(state === 'ErrorUpdating' && s.message);
+    problem.textContent = s.message || '';
   }
+
+  // lazy: only while the box is open; the status poll below refreshes it every 3 s during an update
+  async function loadLog() {
+    try {
+      const res = await auth.api('/api/admin/update/log');
+      logText.textContent = res.ok ? (await res.text()) || '(no log yet)' : await reason(res);
+      logText.scrollTop = logText.scrollHeight;
+    } catch (e) { /* the server restarts during an update: keep the last text */ }
+  }
+  logBox.addEventListener('toggle', () => { if (logBox.open) loadLog(); });
 
   async function load() {
     try {
@@ -583,6 +598,7 @@ async function pageUpdate() {
       if (!res.ok) { help.textContent = await reason(res); return; }
       s = await res.json();
       show();
+      if (logBox.open) loadLog();
       watch();
     } catch (e) {
       if (e instanceof auth.LoginRequired) { fail(e); return; }
@@ -596,7 +612,7 @@ async function pageUpdate() {
     if (s.state === 'Updating' && !poll) {
       tries = 0;
       poll = every(3000, () => {
-        if (++tries > 300) { clearInterval(poll); help.textContent = 'Still updating after 15 minutes. Check the server.'; return; }
+        if (++tries > 400) { clearInterval(poll); help.textContent = 'Still updating after 20 minutes. Check the server.'; return; }
         load();
       });
     } else if (s.state !== 'Updating' && poll) {
@@ -610,7 +626,12 @@ async function pageUpdate() {
     try {
       const res = await auth.api('/api/admin/update', { method: 'POST' });
       if (res.status === 202) { s = await res.json(); say('Update started.'); }
-      else if (res.status === 409) { say('An update is already pending or running.', true); s = { ...s, state: 'Updating' }; }
+      else if (res.status === 409) {
+        const body = await res.json().catch(() => ({}));
+        if (body.error === 'cooldown') {
+          say(`Try again after ${new Date(body.retryAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.`, true);
+        } else { say('An update is already pending or running.', true); s = { ...s, state: 'Updating' }; }
+      }
       else if (res.status === 503) { s = { ...s, state: 'Unavailable' }; say('Updates are not available on this server.', true); }
       else say(await reason(res), true);
       show();

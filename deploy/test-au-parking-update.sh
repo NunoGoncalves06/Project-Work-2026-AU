@@ -31,7 +31,7 @@ case "$*" in
   *"ps -q"*) echo container1 ;;
   "image inspect"*) [ -e "$T/have_new" ] && echo "$OLD_IMG" || exit 1 ;;
   inspect*) echo "$OLD_IMG" ;;
-  pull*) [ ! -e "$T/no_tag" ] ;;
+  pull*) echo "pulling $2"; if [ -e "$T/pull_once" ]; then rm -f "$T/pull_once"; echo "manifest unknown"; exit 1; fi; [ ! -e "$T/no_tag" ] ;;
   *" up -d"*) [ "${PARKING_APP_IMAGE:-}" = au-parking-backend:rollback ] && rm -f "$T/health_fail" || true ;;
   *" exec "*) [ ! -e "$T/health_fail" ] && [ ! -e "$T/health_fail_always" ] ;;
 esac
@@ -40,11 +40,11 @@ chmod +x "$t"/bin/*
 export NEW_SHA=$NEW OLD_IMG=$IMG
 export APP_DIR="$t/app" UPDATE_DIR="$t/upd" LOCK_FILE="$t/lock" SBIN_DIR="$t/sbin" UNIT_DIR="$t/units" ACL_OWNER="$(id -u):$(id -g)" \
   BACKUP_SCRIPT="$t/bin/backup" GIT="$t/bin/git" DOCKER="$t/bin/docker" SYSTEMCTL="$t/bin/systemctl" FLOCK="$t/bin/flock" \
-  RUNUSER="$t/bin/runuser" HEALTH_TRIES=2 HEALTH_SLEEP=0 COOLDOWN_SECS=0
+  RUNUSER="$t/bin/runuser" HEALTH_TRIES=2 HEALTH_SLEEP=0 COOLDOWN_SECS=0 PULL_WAIT_SECS=2 PULL_POLL_SECS=1
 
 ok() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; echo "--- status:"; cat "$t/upd/status.json" 2>/dev/null || true; echo "--- calls:"; cat "$t/calls" 2>/dev/null || true; exit 1; }
-reset() { rm -f "$t/calls" "$t/flocklog" "$t/upd/status.json" "$t"/{locked,have_new,no_tag,backup_fail,health_fail,health_fail_always,diff_changed}; echo "$OLD" > "$t/head"; }
+reset() { rm -f "$t/calls" "$t/flocklog" "$t/upd/status.json" "$t"/{locked,have_new,no_tag,pull_once,backup_fail,health_fail,health_fail_always,diff_changed}; echo "$OLD" > "$t/head"; }
 run() { rm -f "$t/calls"; : > "$t/upd/inbox/request"; bash "$here/au-parking-update.sh"; }
 has() { grep -q -- "$1" "$t/calls"; }
 hasnt() { ! grep -q -- "$1" "$t/calls" 2>/dev/null; }
@@ -60,6 +60,9 @@ gone || fail "request removed"
 has backup && has "docker pull $REPO:$NEW" && has "docker tag $IMG au-parking-backend:rollback" \
   && has "docker tag $REPO:$NEW au-parking-backend:current" && has "$DCF up -d" && has "systemctl daemon-reload" || fail "backup, pull sha tag, tags, up, daemon-reload"
 [ "$(cat "$t/sbin/au-parking-update.sh")" = "content of $NEW:deploy/au-parking-update.sh" ] && [ -e "$t/units/au-parking-update.path" ] || fail "installed from the new commit"
+LOGF="$t/upd/last-run.log"
+for w in fetch pull backup reset install "compose up" health; do grep -q -- " $w$" "$LOGF" || fail "last-run.log has the $w step"; done
+grep -q "pulling $REPO:$NEW" "$LOGF" && [ "$(stat -c %a "$LOGF")" = 644 ] || fail "last-run.log has command output and mode 644"
 ok "success: backup, pull of the sha tag, rollback tag, current tag, install from the commit, status success"
 
 # changed Caddyfile / mqtt config
@@ -93,14 +96,21 @@ ok "rollback that does not get healthy is reported as rollback failed"
 # backup fails: nothing changed
 reset; touch "$t/backup_fail"
 if run; then fail "backup failure must exit non-zero"; fi
-status_has "Backup failed" && gone && hasnt "docker pull" && hasnt "git .*reset" || fail "backup failure changes nothing"
+status_has "Backup failed" && gone && hasnt "docker tag" && hasnt "git .*reset" || fail "backup failure changes nothing"
 ok "backup failure: nothing changed, request removed, status error"
 
-# new image tag does not exist yet
+# new image tag never appears: waits, then fails before anything changes (backup included)
 reset; touch "$t/no_tag"
 if run; then fail "missing tag must exit non-zero"; fi
-status_has "New version not built yet" && status_has '"state":"error"' && gone && hasnt "git .*reset" && hasnt "docker tag" && hasnt " up -d" || fail "missing tag deploys nothing"
-ok "missing image tag: nothing deployed, git untouched, status error"
+status_has "not built on GitHub within 10 minutes" && status_has '"state":"error"' && gone && hasnt backup && hasnt "git .*reset" && hasnt "docker tag" && hasnt " up -d" || fail "missing tag deploys nothing"
+[ "$(grep -c 'docker pull' "$t/calls")" -ge 2 ] || fail "missing tag is retried"
+ok "missing image tag: polled, nothing deployed, no backup, git untouched, status error"
+
+# image appears after one poll: the update waits and succeeds
+reset; touch "$t/pull_once"
+run || fail "image that appears later exits 0"
+[ "$(grep -c 'docker pull' "$t/calls")" = 2 ] && status_has '"state":"success"' && grep -q "manifest unknown" "$t/upd/last-run.log" || fail "second pull succeeds and the update goes through"
+ok "image built late: waited one poll, then updated"
 
 # busy lock: waits (flock -w), gives up without touching anything, request still consumed
 reset; touch "$t/locked"; : > "$t/upd/inbox/request"

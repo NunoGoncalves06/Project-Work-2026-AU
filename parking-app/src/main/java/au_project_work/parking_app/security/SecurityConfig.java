@@ -70,6 +70,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.HEAD, PUBLIC_READS).permitAll()
                         // minimum role per admin route, decided here and nowhere else; first match wins
                         .requestMatchers("/api/admin/simulator/**").hasRole("OPERATOR")
+                        .requestMatchers(HttpMethod.GET, "/api/admin/update/log").hasRole("ADMIN") // command output of the last update
                         .requestMatchers(HttpMethod.GET, "/api/admin/**").hasRole("VIEWER") // me, lots, update status
                         .requestMatchers("/api/admin/**").hasRole("ADMIN") // lot/row/spot/sensor changes, update request
                         .anyRequest().denyAll());

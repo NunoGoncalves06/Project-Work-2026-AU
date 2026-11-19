@@ -19,12 +19,14 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -86,6 +88,33 @@ class UpdateControllerTests {
         Files.delete(dir.resolve("inbox/request"));
     }
 
+
+    @Test
+    void logIsAdminOnlyAndServedAsPlainText() throws Exception {
+        Files.writeString(dir.resolve("last-run.log"), "12:00 pull\nok\u001b\n");
+        mvc.perform(get("/api/admin/update/log").with(as("VIEWER"))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/update/log").with(as("OPERATOR"))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/admin/update/log")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/admin/update/log").with(as("ADMIN"))).andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/plain")).andExpect(content().string("12:00 pull\nok"));
+        Files.delete(dir.resolve("last-run.log"));
+        mvc.perform(get("/api/admin/update/log").with(as("ADMIN"))).andExpect(status().isOk()).andExpect(content().string(""));
+    }
+
+    @Test
+    void requestInsideTheCooldownIs409WithRetryAt() throws Exception {
+        Instant finished = Instant.now().minusSeconds(60);
+        Files.writeString(dir.resolve("status.json"), "{\"state\":\"error\",\"sha\":\"\",\"previousSha\":\"\",\"startedAt\":\"" + finished.minusSeconds(60)
+                + "\",\"finishedAt\":\"" + finished + "\",\"message\":\"x\"}");
+        try {
+            mvc.perform(post("/api/admin/update").with(as("ADMIN"))).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.error").value("cooldown"))
+                    .andExpect(jsonPath("$.retryAt").value(finished.plusSeconds(300).toString()));
+            assertFalse(Files.exists(dir.resolve("inbox/request")));
+        } finally {
+            Files.delete(dir.resolve("status.json"));
+        }
+    }
     @Test
     void missingFolderIs503() throws Exception {
         Path inbox = dir.resolve("inbox");
