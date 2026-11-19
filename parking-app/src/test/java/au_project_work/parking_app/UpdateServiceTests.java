@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -127,6 +128,49 @@ class UpdateServiceTests {
         assertEquals(Result.BUSY, service.request());
     }
 
+
+    @Test
+    void failedRunShowsWhatRunsAndWhatIsOnMainNotTheTarget() throws IOException {
+        remote(A, B); // server runs A, main is B; the failed run targeted B
+        status("error", B, Instant.now().minusSeconds(60), Instant.now().minusSeconds(30), "New version not built yet");
+        Status s = service.status();
+        assertEquals(A, s.localSha());
+        assertEquals(B, s.remoteSha());
+    }
+
+    @Test
+    void requestInsideTheCooldownIsRefusedWithTheEndTime() throws IOException {
+        Instant finished = Instant.now().minusSeconds(60);
+        status("error", B, finished.minusSeconds(60), finished, "x");
+        assertEquals(Result.COOLDOWN, service.request());
+        assertTrue(service.cooldownEnd().isAfter(Instant.now()));
+        assertFalse(Files.exists(dir.resolve("inbox/request")));
+        status("error", B, finished.minusSeconds(600), Instant.now().minusSeconds(400), "x");
+        assertNull(service.cooldownEnd());
+        assertEquals(Result.CREATED, service.request());
+    }
+
+    @Test
+    void logIsEmptyWhenMissingTailedToTwoHundredLinesAndPrintable() throws IOException {
+        assertEquals("", service.log());
+        StringBuilder sb = new StringBuilder("old\n");
+        for (int i = 1; i <= 250; i++) sb.append("line ").append(i).append('\n');
+        file("last-run.log", sb.toString());
+        String[] lines = service.log().split("\n", -1);
+        assertEquals(200, lines.length);
+        assertEquals("line 51", lines[0]);
+        file("last-run.log", "a\u001b[31mb\tc\r\nd\u0000");
+        assertEquals("a[31mb\tc\nd", service.log());
+    }
+
+    @Test
+    void logReadIsLimitedToTheLastBytes() throws IOException {
+        file("last-run.log", "first-line-gone\n" + "x".repeat(300 * 1024) + "\nlast-line");
+        String log = service.log();
+        assertTrue(log.length() <= 256 * 1024);
+        assertTrue(log.endsWith("last-line"));
+        assertFalse(log.contains("first-line-gone"));
+    }
     @Test
     void missingFolderIsUnavailable() {
         UpdateService none = new UpdateService(dir.resolve("nope").toString());

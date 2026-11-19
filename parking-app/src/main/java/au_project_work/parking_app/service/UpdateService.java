@@ -7,11 +7,15 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 
 /**
  * Server update state, read from the folder shared with the host (docker-compose.prod.yml mounts it read-only,
@@ -24,7 +28,7 @@ public class UpdateService {
     public record Status(String state, String localSha, String remoteSha, String finishedAt, String message) {
     }
 
-    public enum Result { CREATED, BUSY, UNAVAILABLE }
+    public enum Result { CREATED, BUSY, COOLDOWN, UNAVAILABLE }
 
     private static final int MAX_JSON_BYTES = 4096;
     private static final Duration SUCCESS_SHOWN = Duration.ofMinutes(10);
@@ -32,6 +36,10 @@ public class UpdateService {
     private static final Duration RUN_TIMEOUT = Duration.ofMinutes(30);
     // the host consumes the request within seconds; an older one was never picked up and must not block for ever
     private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(5);
+    // the host script ignores a request this soon after the last run (COOLDOWN_SECS there): say so instead of dropping it
+    private static final Duration COOLDOWN = Duration.ofMinutes(5);
+    private static final int LOG_TAIL_BYTES = 256 * 1024;
+    private static final int LOG_LINES = 200;
 
     private final JsonMapper json = JsonMapper.builder().build();
     private final Path dir;
@@ -57,7 +65,9 @@ public class UpdateService {
         }
         String message = clean(text(st, "message"));
         if ("error".equals(run) || "updating".equals(run)) { // an old "updating" is a run that died
-            return new Status("ErrorUpdating", sha(text(st, "sha")), null, iso(finished), message);
+            // running = what the last check saw on the server (status.sha is the TARGET of the failed run)
+            String running = sha(text(remote, "localSha")) != null ? sha(text(remote, "localSha")) : sha(text(st, "previousSha"));
+            return new Status("ErrorUpdating", running, sha(text(remote, "remoteSha")), iso(finished), message);
         }
         String local = sha(text(remote, "localSha"));
         String target = sha(text(remote, "remoteSha"));
@@ -76,6 +86,28 @@ public class UpdateService {
         return new Status(local.equals(target) ? "Updated" : "Outdated", local, target, success ? iso(finished) : null, null);
     }
 
+    /** When the cooldown after the last run ends, or null if no cooldown is running. */
+    public Instant cooldownEnd() {
+        Instant finished = time(read("status.json"), "finishedAt");
+        Instant end = finished == null ? null : finished.plus(COOLDOWN);
+        return end != null && end.isAfter(Instant.now()) ? end : null;
+    }
+
+    /** Tail of the last run's log: last lines only, printable text only. Empty when there is none. */
+    public String log() {
+        try (FileChannel ch = FileChannel.open(dir.resolve("last-run.log"))) {
+            long from = Math.max(0, ch.size() - LOG_TAIL_BYTES);
+            ByteBuffer buf = ByteBuffer.allocate((int) (ch.size() - from));
+            while (buf.hasRemaining() && ch.read(buf, from + buf.position()) > 0) { /* fill */ }
+            String text = new String(buf.array(), 0, buf.position(), StandardCharsets.UTF_8)
+                    .replaceAll("[\\p{Cntrl}&&[^\\n\\t]]", "");
+            String[] lines = text.replaceAll("\n+$", "").split("\n", -1);
+            return String.join("\n", Arrays.copyOfRange(lines, Math.max(0, lines.length - LOG_LINES), lines.length));
+        } catch (IOException | RuntimeException e) {
+            return "";
+        }
+    }
+
     /** Creates the request file; create-new, so two clicks cannot both succeed. */
     public Result request() {
         if (!Files.isDirectory(inbox)) {
@@ -83,6 +115,9 @@ public class UpdateService {
         }
         if ("Updating".equals(status().state())) {
             return Result.BUSY;
+        }
+        if (cooldownEnd() != null) {
+            return Result.COOLDOWN;
         }
         try {
             Files.deleteIfExists(inbox.resolve("request")); // only a stale one gets here: a fresh one made status() say Updating

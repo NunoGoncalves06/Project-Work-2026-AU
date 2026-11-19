@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-click update of the stack. Root, no arguments, reads no input: the backend only creates the file
 # $UPDATE_DIR/inbox/request, and only its existence starts au-parking-update.path -> au-parking-update.service.
-# Progress and result go to $UPDATE_DIR/status.json (fixed messages only, never command output).
+# Progress and result go to $UPDATE_DIR/status.json (fixed messages only, never command output); command output goes to last-run.log.
 # Overrides (GIT, DOCKER, ...) exist for deploy/test-au-parking-update.sh; the systemd unit unsets them.
 set -euo pipefail
 umask 022
@@ -17,11 +17,13 @@ ACL_OWNER=${ACL_OWNER:-1883:1883}
 BACKUP_SCRIPT=${BACKUP_SCRIPT:-/usr/local/sbin/backup-db.sh}
 GIT=${GIT:-git} DOCKER=${DOCKER:-docker} SYSTEMCTL=${SYSTEMCTL:-systemctl} FLOCK=${FLOCK:-flock} RUNUSER=${RUNUSER:-runuser}
 HEALTH_TRIES=${HEALTH_TRIES:-30} HEALTH_SLEEP=${HEALTH_SLEEP:-3} COOLDOWN_SECS=${COOLDOWN_SECS:-300}
+PULL_WAIT_SECS=${PULL_WAIT_SECS:-600} PULL_POLL_SECS=${PULL_POLL_SECS:-20} # wait for the GitHub image build
 
 IMAGE_REPO=ghcr.io/nunogoncalves06/au-parking-backend # tags there are full commit shas (the workflow github.sha)
 CURRENT=au-parking-backend:current   # what docker-compose.prod.yml runs by default: survives a plain `up -d`
 ROLLBACK=au-parking-backend:rollback # the image that ran before this update
 STATUS=$UPDATE_DIR/status.json
+LOG=$UPDATE_DIR/last-run.log # command output of this run, root-written, shown to admins; never put secrets in it
 REQ=$UPDATE_DIR/inbox/request
 SCRIPTS=(backup-db.sh sync-mqtt-cert.sh au-parking-update.sh au-parking-check.sh)
 UNITS=(backup-db.service backup-db.timer sync-mqtt-cert.service sync-mqtt-cert.timer
@@ -39,8 +41,11 @@ write_status() { # state message [finishedAt]
   mv -f "$STATUS.tmp" "$STATUS"
 }
 finish() { final=1; write_status "$1" "$2" "$(now)"; }
+log() { if [ "$begun" = 1 ]; then printf '%s %s\n' "$(now)" "$*" >> "$LOG"; fi; }
+step() { local name=$1; shift; log "$name"; "$@" >> "$LOG" 2>&1; } # one logged step: its output goes to the log
 # the trigger is consumed on every exit path, so a failed or skipped run can never leave the dashboard on "Updating"
-trap 'rm -rf -- "$REQ"; if [ "$begun" = 1 ] && [ "$final" = 0 ]; then finish error "Update interrupted"; fi' EXIT
+trap 'rm -rf -- "$REQ"; if [ "$begun" = 1 ] && [ "$final" = 0 ]; then finish error "Update interrupted"; fi
+  if [ "$begun" = 1 ] && [ -f "$LOG" ]; then tail -c 200000 "$LOG" > "$LOG.tmp" && mv -f "$LOG.tmp" "$LOG"; fi' EXIT
 
 exec 9>"$LOCK_FILE"
 "$FLOCK" -w 300 9 || exit 0 # still busy after 5 minutes: give up, touch nothing else
@@ -54,10 +59,11 @@ if [ -n "$last" ] && last_s=$(date -u -d "$last" +%s 2>/dev/null); then
 fi
 
 begun=1; started=$(now)
+: > "$LOG"; chmod 644 "$LOG"
 write_status updating "Update started"
 cd "$APP_DIR"
 
-as_user timeout 120 "$GIT" -C "$APP_DIR" fetch origin main >/dev/null 2>&1 \
+step fetch as_user timeout 120 "$GIT" -C "$APP_DIR" fetch origin main \
   || { finish error "Could not fetch the new version, nothing changed"; exit 1; }
 new=$(sha_ok "$(as_user "$GIT" -C "$APP_DIR" rev-parse origin/main)")
 prev=$(sha_ok "$(as_user "$GIT" -C "$APP_DIR" rev-parse HEAD)")
@@ -75,13 +81,22 @@ if [ "$prev" = "$new" ] && [ -n "$prev_image" ] && [ "$have" = "$prev_image" ]; 
   exit 0
 fi
 
-"$BACKUP_SCRIPT" >/dev/null 2>&1 || { finish error "Backup failed, nothing changed"; exit 1; }
-# the image for this commit must exist before anything on the server changes
-"$DOCKER" pull "$target" >/dev/null 2>&1 || { finish error "New version not built yet, nothing changed"; exit 1; }
+# the image for this commit must exist before anything on the server changes; GitHub builds it in about 5 minutes,
+# so an update pressed right after a merge waits for it (before the backup: a wait costs nothing)
+waited=0
+until step pull "$DOCKER" pull "$target"; do
+  if [ "$waited" -ge "$PULL_WAIT_SECS" ]; then
+    finish error "New version was not built on GitHub within 10 minutes, nothing changed"; exit 1
+  fi
+  write_status updating "Waiting for GitHub to finish building the new version"
+  sleep "$PULL_POLL_SECS"; waited=$((waited + PULL_POLL_SECS))
+done
+write_status updating "Update started"
+step backup "$BACKUP_SCRIPT" || { finish error "Backup failed, nothing changed"; exit 1; }
 if [ -n "$prev_image" ]; then
-  "$DOCKER" tag "$prev_image" "$ROLLBACK" || { finish error "Could not save the running version, nothing changed"; exit 1; }
+  step "tag rollback" "$DOCKER" tag "$prev_image" "$ROLLBACK" || { finish error "Could not save the running version, nothing changed"; exit 1; }
 fi
-as_user "$GIT" -C "$APP_DIR" reset --hard "$new" >/dev/null 2>&1 \
+step reset as_user "$GIT" -C "$APP_DIR" reset --hard "$new" \
   || { finish error "Could not check out the new version"; exit 1; }
 
 # git rewrites files as ec2-user: give the container users their files back. Symlinks are refused (chmod would follow them)
@@ -125,32 +140,34 @@ health() {
   return 1
 }
 deploy_new() {
-  apply_perms || return 1
+  log install; apply_perms || return 1
   install_deploy_files "$new" || return 1
-  "$DOCKER" tag "$target" "$CURRENT" || return 1
+  log "compose up"; "$DOCKER" tag "$target" "$CURRENT" || return 1
   dc up -d || return 1
   refresh_services || return 1
-  health
+  log health; health
 }
 roll_back() {
   [ -n "$prev_image" ] || return 1
   as_user "$GIT" -C "$APP_DIR" reset --hard "$prev" || return 1
-  apply_perms || return 1
+  log install; apply_perms || return 1
   install_deploy_files "$prev" || return 1
   "$DOCKER" tag "$ROLLBACK" "$CURRENT" || return 1 # later plain `up -d` runs keep the old version too
   PARKING_APP_IMAGE=$ROLLBACK dc up -d || return 1
   refresh_services || return 1
-  health
+  log health; health
 }
 
-if deploy_new >/dev/null 2>&1; then
+log deploy
+if deploy_new >> "$LOG" 2>&1; then
   finish success "Update successful"
   exit 0
 fi
 
 # Roll back: checkout, scripts and image go back together. Migrations are additive, so the previous image
 # runs on the migrated database.
-if roll_back >/dev/null 2>&1; then
+log rollback
+if roll_back >> "$LOG" 2>&1; then
   finish error "Update failed, rolled back"
 else
   finish error "Update failed, rollback failed"
