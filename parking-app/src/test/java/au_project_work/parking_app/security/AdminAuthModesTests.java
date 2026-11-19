@@ -36,19 +36,29 @@ class AdminAuthModesTests {
     }
 
     @Test
+    void domainWithSchemeStopsStartUp() {
+        new ApplicationContextRunner()
+                .withUserConfiguration(AdminAuth.class)
+                .withPropertyValues("cognito.region=eu-north-1", "cognito.user-pool-id=eu-north-1_Test",
+                        "cognito.client-id=test-client", "cognito.domain=https://test.auth.eu-north-1.amazoncognito.com")
+                .run(context -> assertThat(context).hasFailed().getFailure().rootCause()
+                        .hasMessageContaining("host only, without https://"));
+    }
+
+    @Test
     void authOffNextToARealLoginStopsStartUp() {
         new ApplicationContextRunner()
                 .withUserConfiguration(AdminAuth.class)
                 .withPropertyValues("admin.auth=off", "cognito.region=eu-north-1",
                         "cognito.user-pool-id=eu-north-1_Test", "cognito.client-id=test-client",
-                        "cognito.domain=https://test.auth.eu-north-1.amazoncognito.com")
+                        "cognito.domain=test.auth.eu-north-1.amazoncognito.com")
                 .run(context -> assertThat(context).hasFailed().getFailure().rootCause()
                         .hasMessageContaining("ADMIN_AUTH=off"));
     }
 
     @Test
     void issuerAndKeysUrlAreThePools() {
-        AdminAuth auth = new AdminAuth("eu-north-1", "eu-north-1_AbC123", "client", "https://x.example", "");
+        AdminAuth auth = new AdminAuth("eu-north-1", "eu-north-1_AbC123", "client", "x.example", "");
         assertThat(auth.issuer()).isEqualTo("https://cognito-idp.eu-north-1.amazonaws.com/eu-north-1_AbC123");
         assertThat(auth.jwksUri())
                 .isEqualTo("https://cognito-idp.eu-north-1.amazonaws.com/eu-north-1_AbC123/.well-known/jwks.json");
@@ -77,7 +87,7 @@ class AdminAuthModesTests {
             "cognito.region=eu-north-1",
             "cognito.user-pool-id=eu-north-1_Test",
             "cognito.client-id=test-client",
-            "cognito.domain=https://test.auth.eu-north-1.amazoncognito.com"})
+            "cognito.domain=test.auth.eu-north-1.amazoncognito.com"})
     class JwksUnreachable {
 
         @Autowired
