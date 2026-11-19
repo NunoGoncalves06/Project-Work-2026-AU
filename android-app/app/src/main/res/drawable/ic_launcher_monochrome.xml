@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- themed icon (Android 13+): the ticket with the AU mark cut out, tinted by the launcher -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF" android:fillType="evenOdd" android:pathData="M35,28 H73 V80 H71.83 A2,2 0 0,0 67.83,80 H65.5 A2,2 0 0,0 61.5,80 H59.17 A2,2 0 0,0 55.17,80 H52.83 A2,2 0 0,0 48.83,80 H46.5 A2,2 0 0,0 42.5,80 H40.17 A2,2 0 0,0 36.17,80 H35 Z M53.885,37 V41.934 L44.82,51 H40 Z M53.942,43.885 H57.443 A3.5,3.5 0 0,0 64.443,43.885 H67.942 A7,7 0 0,1 53.942,43.885 Z" />
+</vector>
