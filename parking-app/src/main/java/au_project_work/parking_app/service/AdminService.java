@@ -1,5 +1,6 @@
 package au_project_work.parking_app.service;
 
+import au_project_work.parking_app.api.ForecastCache;
 import au_project_work.parking_app.api.Dtos.AddressDto;
 import au_project_work.parking_app.api.Dtos.AdminLotDto;
 import au_project_work.parking_app.api.Dtos.AdminRowDto;
@@ -37,8 +38,10 @@ public class AdminService {
 
     private final JdbcTemplate jdbc;
     private final ParkingLotRepository parkingLotRepository;
+    private final ForecastCache forecastCache;
 
-    public AdminService(JdbcTemplate jdbc, ParkingLotRepository parkingLotRepository) {
+    public AdminService(JdbcTemplate jdbc, ParkingLotRepository parkingLotRepository, ForecastCache forecastCache) {
+        this.forecastCache = forecastCache;
         this.jdbc = jdbc;
         this.parkingLotRepository = parkingLotRepository;
     }
@@ -99,13 +102,14 @@ public class AdminService {
         if (!inUse.isEmpty() && inUse.get(0)) {
             throw conflict();
         }
+        forecastCache.clear();
         int spotId = jdbc.queryForObject("INSERT INTO parking_spots (parking_row_id) VALUES (?) RETURNING parking_spot_id",
                 Integer.class, rowId);
         if (inUse.isEmpty()) {
             jdbc.update("INSERT INTO parking_spot_sensors (parking_spot_sensor_id, parking_spot_id) VALUES (?, ?)",
                     sensorId, spotId);
         } else {
-            jdbc.update("UPDATE parking_spot_sensors SET parking_spot_id = ? WHERE parking_spot_sensor_id = ?",
+            jdbc.update("UPDATE parking_spot_sensors SET parking_spot_id = ?, attached_at = now() WHERE parking_spot_sensor_id = ?",
                     spotId, sensorId);
             freshSpot(spotId);
         }
@@ -135,12 +139,13 @@ public class AdminService {
                 || exists("SELECT 1 FROM parking_spot_sensors WHERE parking_spot_id = ?", spotId)) {
             throw conflict();
         }
-        jdbc.update("UPDATE parking_spot_sensors SET parking_spot_id = ? WHERE parking_spot_sensor_id = ?", spotId, sensorId);
+        jdbc.update("UPDATE parking_spot_sensors SET parking_spot_id = ?, attached_at = now() WHERE parking_spot_sensor_id = ?", spotId, sensorId);
         freshSpot(spotId);
     }
 
     // the sensor's old reading says nothing about the new spot: show it free until the board reports
     private void freshSpot(int spotId) {
+        forecastCache.clear(); // a moved sensor changes which history the lot's forecast uses
         jdbc.update("UPDATE parking_spots SET occupied = false, updated_at = now() WHERE parking_spot_id = ?", spotId);
     }
 
@@ -174,6 +179,7 @@ public class AdminService {
 
     // table and column are constants of this class, never request input
     private void archive(String table, String idColumn, int id) {
+        forecastCache.clear(); // the forecast counts the lot's live spots
         if (jdbc.update("UPDATE " + table + " SET archived_at = now() WHERE " + idColumn + " = ? AND archived_at IS NULL", id) == 0) {
             throw notFound();
         }

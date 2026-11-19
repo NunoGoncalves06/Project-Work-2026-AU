@@ -32,6 +32,9 @@ public class ParkingLotController {
     @Autowired
     private EntranceMeasurementRepository entranceMeasurementRepository;
 
+    @Autowired
+    private ForecastCache forecastCache;
+
     @GetMapping
     @Transactional(readOnly = true)
     public List<LotSummaryDto> getAll() {
@@ -45,8 +48,8 @@ public class ParkingLotController {
     @Transactional(readOnly = true)
     public LotDetailDto getOne(@PathVariable Integer id) {
         return parkingLotRepository.findById(id)
-                .map(lot -> toDetail(lot, parkingLotRepository.forecast(lot.getId()).stream()
-                        .map(f -> new ForecastDto(f.getAt(), f.getFreeSpots())).toList()))
+                .map(lot -> toDetail(lot, forecastCache.get(lot.getId(), () -> parkingLotRepository.forecast(lot.getId()).stream()
+                        .map(f -> new ForecastDto(f.getAt(), f.getFreeSpots())).toList())))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown parking lot " + id));
     }
 
