@@ -23,7 +23,7 @@ Example response from `GET /parking-lots`:
    "totalSpots": 16, "freeSpots": 12, "carsInside": 4 }]
 ```
 
-The sensors write to `POST /parking-spot-measurements` and `POST /entrance-measurements`. The request bodies are documented in the README.
+The sensors do not use the REST API: readings come in over MQTT (topics `carcounter/spots` and `carcounter/entrance`). The payloads are documented in the README. There are no public history endpoints.
 
 ## Where the code lives
 
@@ -45,8 +45,6 @@ parking-app/src/main/java/au_project_work/parking_app/
    ```
 
    The schema changed, so the DB init scripts in `db/init` have to run again. They only run on an empty volume, so this deletes your local DB data.
-
-2. **JSON keys on `/entrance-measurements` are now camelCase.** For example, `entranceSensorID` became `entranceSensorId`. `measuredAt` is now an ISO timestamp with a time zone. Update any scripts that read these keys.
 
 3. **The schema changed in `db/init`.**
    - Each parking spot now has its own sensor, using the new tables `parking_spots`, `parking_spot_sensors` and `parking_spot_measurements`.
@@ -100,7 +98,7 @@ To start it again later, run `sudo systemctl start postgresql`.
 
 ## Known gaps (accepted for v1)
 
-- **No authentication on the sensor POST endpoints.** Anyone who can reach the server can send measurements. That's fine for the demo, but it needs a fix before real deployment.
+- **No authentication on MQTT.** Anyone who can reach the broker can send measurements. That's fine for the demo, but it needs a fix before real deployment.
 - **Two test gaps:**
   - No test checks that a spot update also writes its history row.
   - A test that fails halfway can leave changed data behind for the next test.

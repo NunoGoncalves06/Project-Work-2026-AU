@@ -59,7 +59,6 @@ class ParkingAppApplicationTests {
     @Test
     void appRoutesNeedNoLogin() throws Exception {
         for (String path : List.of("/parking-lots", "/parking-lots/1", "/parking-lots/stream",
-                "/parking-spot-measurements/all", "/entrance-measurements/all", "/entrance-measurements/sensor/1",
                 "/api/health", "/api/auth/config")) {
             mvc.perform(get(path)).andExpect(status().isOk());
         }
@@ -87,15 +86,6 @@ class ParkingAppApplicationTests {
                 }))
                 .andExpect(status().isNotFound());
         mvc.perform(get("/error")).andExpect(status().isServiceUnavailable());
-    }
-
-    @Test
-    void entranceMeasurementsUseCamelCaseKeys() throws Exception {
-        mvc.perform(get("/entrance-measurements/sensor/1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].entranceMeasurementId").value(1))
-                .andExpect(jsonPath("$[0].entranceSensorId").value(1))
-                .andExpect(jsonPath("$[0].measuredValue").value(1));
     }
 
     @Test
