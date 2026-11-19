@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
                         if (picked) UiModeManager.MODE_NIGHT_YES else UiModeManager.MODE_NIGHT_NO,
                     )
                 }
-                iconDark = picked
+                iconDark = picked ?: false // no pick: the default (light) entry, which also undoes an older build's system-theme swap
             }
         }
         // read the pick before the first frame: below Android 12 nothing else tells it (a tiny DataStore read)

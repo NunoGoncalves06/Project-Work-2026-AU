@@ -177,7 +177,7 @@ class ParkingAppApplicationTests {
         forecastCache.clear(); // the forecast is cached per hour and this test changes the history in between
         // seed history (October) is older than all 4 sampled weeks: spots 1-4 taken in each
         mvc.perform(get("/parking-lots/1"))
-                .andExpect(jsonPath("$.forecast.length()").value(168))
+                .andExpect(jsonPath("$.forecast.length()").value(org.hamcrest.Matchers.oneOf(167, 168))) // 167 in the spring-forward week (two hours merge)
                 .andExpect(jsonPath("$.forecast[0].at").isString())
                 .andExpect(jsonPath("$.forecast[0].freeSpots").value(12));
 

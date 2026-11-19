@@ -75,6 +75,6 @@ class SseUpdateStreamTest {
     @Test
     fun emitsOnAChangedEventToo() {
         // open and changed land together and the stream keeps only the newest (DROP_OLDEST), so 1 or 2 is right
-        assertEquals(2, emissionsFor("event: changed\ndata: x\n\n"))
+        assertTrue(emissionsFor("event: changed\ndata: x\n\n") in 1..2)
     }
 }

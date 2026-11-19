@@ -3,6 +3,7 @@ package au_project_work.parking_app.mqtt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
+import org.springframework.transaction.TransactionException;
 
 /** Keeps a sensor reading through a short database outage instead of dropping it. */
 final class DbRetry {
@@ -20,7 +21,7 @@ final class DbRetry {
             try {
                 action.run();
                 return;
-            } catch (DataAccessException e) {
+            } catch (DataAccessException | TransactionException e) { // TransactionException: Postgres down, no connection to start one
                 if (waited + delay > GIVE_UP_AFTER_MS) {
                     log.error("Database still failing after {} ms, dropping the sensor reading", waited, e);
                     return;

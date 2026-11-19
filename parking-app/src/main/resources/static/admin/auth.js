@@ -19,7 +19,7 @@ export async function loadConfig() {
 }
 
 const redirectUri = () => location.origin + '/admin/';
-// the domain may be stored with or without its scheme
+// config.domain is the host only (AdminAuth refuses a scheme or path)
 const hostedUi = () => 'https://' + config.domain;
 
 function base64url(bytes) {
