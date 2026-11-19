@@ -106,7 +106,7 @@ Do this once, in the AWS region of the server. Console labels change from time t
 
 ### Same, with the AWS CLI
 
-The repo has no Cognito template, so this is the CLI route (adapted from `HANDOFF.md` section 7; not run against this project, check the output of each command). Run in CloudShell or a PC logged in to AWS. One command at a time.
+The repo has no Cognito template, so this is the CLI route (not run against this project, check the output of each command). Run in CloudShell or a PC logged in to AWS. One command at a time.
 
 ```bash
 REGION=<region>

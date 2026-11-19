@@ -1,6 +1,6 @@
 # Plan: AU Parking admin dashboard (v2, after review)
 
-Date: 2026-11-18. Auth pattern: `HANDOFF.md` (Cognito hosted login, PKCE, roles from groups), ported to Spring Boot 4.1.1.
+Date: 2026-11-18. Auth pattern: the Cognito hosted login with PKCE and roles from groups (docs/admin-dashboard.md), ported to Spring Boot 4.1.1.
 Load assumed: one t3.micro server, a few admins, tens of spots.
 
 ## Decisions
@@ -37,7 +37,7 @@ Acceptance: self-check with fake `git`/`docker` for success, failure with rollba
 Out of scope: database rollbacks (migrations are additive).
 
 ## Step 6: Add the admin dashboard frontend
-Plain HTML/JS at `/admin/`, design from the app's ticket look (palette, typewriter font, spot strip, LIVE badge, printed stamp) using `/impeccable` and `frontend-design`. Pages: overview (live via the public stream with `EventSource`), lot detail (click a spot to toggle; add/archive/move sensor), traffic simulator, server update button. PKCE login per HANDOFF §8, tokens in `sessionStorage`, refresh before expiry, 401 sends to login. No `innerHTML` with API data; role-based hiding is cosmetic only.
+Plain HTML/JS at `/admin/`, design from the app's ticket look (palette, typewriter font, spot strip, LIVE badge, printed stamp) using `/impeccable` and `frontend-design`. Pages: overview (live via the public stream with `EventSource`), lot detail (click a spot to toggle; add/archive/move sensor), traffic simulator, server update button. PKCE login, tokens in `sessionStorage`, refresh before expiry, 401 sends to login. No `innerHTML` with API data; role-based hiding is cosmetic only.
 Acceptance: manual walkthrough per role; works at phone width; visible keyboard focus.
 
 ## Step 7: Add security headers for the dashboard
@@ -53,6 +53,6 @@ Code review and security review of Steps 2, 3 and 5 by a different model than th
 ## Manual: AWS and GitHub (done by hand, in order)
 1. Before anything: `pg_dump --schema-only` on the server and compare with V1; take a `backup-db` backup.
 2. GitHub: protect `main`; after the first workflow run, make the GHCR package public (no secrets in it).
-3. CloudShell (instance's region): run `deploy/cognito.sh` with callback `https://au-parking.duckdns.org/admin/`; create users with the HANDOFF §7 CLI block; turn on MFA for admins.
+3. CloudShell (instance's region): run `deploy/cognito.sh` with callback `https://au-parking.duckdns.org/admin/`; create users with the CLI block in docs/admin-dashboard.md; turn on MFA for admins.
 4. Server: read-only deploy key; convert `~/au-parking` to a git checkout in the same folder, keeping `.env` and `pwfile`; add the `COGNITO_*` lines; install the update units.
 5. First run: `up -d`, log in at `/admin/` with each role, then press Update.
