@@ -1,10 +1,12 @@
 # Builds the backend image for the AWS server and pushes it to GitHub's container registry.
-# Every push to main is built (the server deploys the tag of the commit it pulls, see deploy/au-parking-update.sh).
+# Pull requests only run the tests (no secrets, read-only token). Every push to main is built (the server deploys the tag of the commit it pulls, see deploy/au-parking-update.sh).
 # Follow-up: pin the actions below to commit SHAs instead of major tags.
 name: backend-image
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -13,12 +15,15 @@ permissions:
 
 jobs:
   test:
-    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Root script self-tests
+        run: bash deploy/test-au-parking-update.sh && bash deploy/test-sync-mqtt-cert.sh
       # the Dockerfile only runs bootJar, so the tests run here first (Testcontainers needs Docker: present on this runner)
       - uses: actions/setup-java@v4
         with:
@@ -29,7 +34,7 @@ jobs:
         run: chmod +x gradlew && ./gradlew test --no-daemon
 
   push:
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
     permissions:
