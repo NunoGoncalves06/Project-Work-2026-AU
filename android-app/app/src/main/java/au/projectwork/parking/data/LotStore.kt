@@ -2,6 +2,7 @@ package au.projectwork.parking.data
 
 import android.content.Context
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -56,5 +57,18 @@ class DataStoreLotStore(context: Context) : LotStore {
         // a cache written by an older app version may not decode; treat it as no cache
         val lots = runCatching { ParkingJson.decodeFromString<List<LotSummary>>(json) }.getOrNull() ?: return null
         return lots to (prefs[LOTS_AT] ?: 0L)
+    }
+}
+
+private val DARK_THEME = booleanPreferencesKey("dark_theme")
+
+/** The theme picked with the sun/moon button; null until the user picks one, which means "follow the system". */
+class ThemeStore(context: Context) {
+    private val store = context.dataStore
+
+    val dark: Flow<Boolean?> = store.data.map { it[DARK_THEME] }
+
+    suspend fun setDark(dark: Boolean) {
+        store.edit { it[DARK_THEME] = dark }
     }
 }

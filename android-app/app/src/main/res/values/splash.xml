@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- launch screen in the app's day colours; values-night has the night ones. Android picks the set from the
+     app's own light/dark choice (MainActivity sets it with UiModeManager.setApplicationNightMode). -->
+<resources>
+    <color name="ticket_ground">#E2E2DC</color>
+    <item name="splash_icon" type="drawable">@mipmap/ic_launcher_light</item>
+</resources>

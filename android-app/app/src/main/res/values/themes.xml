@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- the window behind the Compose UI: the ticket ground, so opening the app never flashes white -->
+    <style name="Base.Theme.AuParking" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/ticket_ground</item>
+    </style>
+    <style name="Theme.AuParking" parent="Base.Theme.AuParking" />
+</resources>

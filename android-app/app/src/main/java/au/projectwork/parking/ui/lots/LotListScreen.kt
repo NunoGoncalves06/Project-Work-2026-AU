@@ -16,6 +16,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -35,6 +36,8 @@ import au.projectwork.parking.data.LotSummary
 import au.projectwork.parking.ui.AuMark
 import au.projectwork.parking.ui.FavouriteToggle
 import au.projectwork.parking.ui.FieldLabel
+import au.projectwork.parking.ui.MoonIcon
+import au.projectwork.parking.ui.SunIcon
 import au.projectwork.parking.ui.FullStamp
 import au.projectwork.parking.ui.LiveIndicator
 import au.projectwork.parking.ui.NavigationArrow
@@ -56,7 +59,7 @@ import au.projectwork.parking.ui.theme.TicketType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LotListScreen(viewModel: LotListViewModel, onLotClick: (Int) -> Unit) {
+fun LotListScreen(viewModel: LotListViewModel, onLotClick: (Int) -> Unit, dark: Boolean, onToggleTheme: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val favourites by viewModel.favourites.collectAsStateWithLifecycle()
     val here by viewModel.here.collectAsStateWithLifecycle()
@@ -76,7 +79,12 @@ fun LotListScreen(viewModel: LotListViewModel, onLotClick: (Int) -> Unit) {
                         Text("AU Parking", style = MaterialTheme.typography.titleLarge)
                     }
                 },
-                actions = { if (stale != null) LiveIndicator(stale) },
+                actions = {
+                    if (stale != null) LiveIndicator(stale)
+                    IconButton(onClick = onToggleTheme) {
+                        Icon(if (dark) SunIcon else MoonIcon, contentDescription = if (dark) "Switch to light theme" else "Switch to dark theme")
+                    }
+                },
             )
         },
     ) { padding ->
