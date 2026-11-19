@@ -16,3 +16,7 @@
 # OS files
 .DS_Store
 Thumbs.db
+
+# Android signing keys: never in the repo
+*.jks
+*.keystore

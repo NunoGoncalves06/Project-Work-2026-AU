@@ -1,0 +1,100 @@
+# Android app: tests on every pull request; on main, a new versionName in android-app/app/build.gradle.kts
+# is built, signed with the release key (GitHub secrets) and published as GitHub release v<versionName>.
+# To release: bump versionCode and versionName in the pull request, then merge.
+name: android-release
+
+on:
+  push:
+    branches: [main]
+    paths: ["android-app/**", ".github/workflows/android-release.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["android-app/**", ".github/workflows/android-release.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - run: ./gradlew testDebugUnitTest assembleDebug --no-daemon
+
+  release:
+    # never for pull requests: they get no signing key
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+    defaults:
+      run:
+        working-directory: android-app
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Version, and whether it is already released
+        id: version
+        run: |
+          v=$(sed -n 's/^ *versionName = "\([0-9][0-9.]*\)"$/\1/p' app/build.gradle.kts)
+          [ -n "$v" ] || { echo "versionName not found"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if gh release view "v$v" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "v$v is already released: bump versionName to release again"
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-java@v4
+        if: steps.version.outputs.new == 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Build the signed APK
+        if: steps.version.outputs.new == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+          trap 'rm -f "$ANDROID_KEYSTORE_FILE"' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_FILE"
+          ./gradlew assembleRelease --no-daemon
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$apksigner" verify app/build/outputs/apk/release/app-release.apk
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/AU-Parking-${{ steps.version.outputs.version }}.apk"
+      - name: Publish the release
+        if: steps.version.outputs.new == 'true'
+        run: |
+          v=${{ steps.version.outputs.version }}
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          Android app for AU Parking, connected to the live server at https://au-parking.duckdns.org.
+
+          **Install on a phone**
+          1. Download \`AU-Parking-$v.apk\` below on the phone.
+          2. Open it and allow "Install unknown apps" for your browser or file app when Android asks.
+          3. Open AU Parking.
+
+          Signed with the AU Parking release key. Versions 1.0 to 1.2 were demo builds signed with a different key:
+          if one of those is installed, uninstall it once before installing this one (favourites are kept only from 1.3 on).
+          Requires Android 8.0 or newer. Built by GitHub Actions from \`main\` at ${GITHUB_SHA::7}.
+          EOF
+          gh release create "v$v" "$RUNNER_TEMP/AU-Parking-$v.apk" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "AU Parking $v" --notes-file "$RUNNER_TEMP/notes.md" --generate-notes
