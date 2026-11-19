@@ -16,6 +16,8 @@ import org.springframework.integration.mqtt.support.MqttHeaders;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.handler.annotation.Header;
 
+import java.util.UUID;
+
 @Configuration
 @EnableIntegration
 public class MqttConnection {
@@ -26,6 +28,12 @@ public class MqttConnection {
 
     @Value("${mqtt.password:}")
     private String mqttPassword;
+
+    // MQTT_CLIENT_ID: the broker keys the queued messages by it, so on a server set it to a value only we know
+    // (the sensor login could otherwise kick the backend off with the same id). Unset = a random id per process
+    // (local dev), which means no queued messages survive a restart.
+    @Value("${mqtt.client-id:}")
+    private String mqttClientId;
 
     // Shared input channel
     @Bean
@@ -80,9 +88,10 @@ public class MqttConnection {
     @Bean
     public MessageProducer inbound() {
         // adapter writes to the shared channel
-        // the broker finds the queued messages by this id: keep it fixed, and unique per broker
+        // the broker finds the queued messages by this id: keep it fixed (MQTT_CLIENT_ID), and unique per broker
         // (two backends with the same id on one broker would keep kicking each other off)
-        MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter("parking-backend",
+        MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter(
+                mqttClientId.isBlank() ? "parking-backend-" + UUID.randomUUID().toString().substring(0, 8) : mqttClientId.trim(),
                 mqttClientFactory(),
                 "carcounter/#"); // handle other messages?
         adapter.setCompletionTimeout(5000);
