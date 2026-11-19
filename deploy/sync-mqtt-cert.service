@@ -8,3 +8,4 @@ Type=oneshot
 WorkingDirectory=/home/ec2-user/au-parking
 # a root-owned copy (install -o root -m 755): root must not run a script ec2-user can edit
 ExecStart=/usr/local/sbin/sync-mqtt-cert.sh
+TimeoutStartSec=600
