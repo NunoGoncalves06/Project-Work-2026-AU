@@ -34,7 +34,8 @@ jobs:
         run: chmod +x gradlew && ./gradlew test --no-daemon
 
   push:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # build on push and manual runs on main, never on pull requests
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: test
     runs-on: ubuntu-latest
     permissions:

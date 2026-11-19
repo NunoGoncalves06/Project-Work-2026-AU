@@ -2,6 +2,8 @@ package au_project_work.parking_app.api;
 
 import au_project_work.parking_app.api.Dtos.ForecastDto;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -33,7 +35,16 @@ public class ForecastCache {
         return fresh;
     }
 
+    /** Clears now and, inside a transaction, again after commit: a request between the two could cache the old forecast. */
     public void clear() {
         byLot.clear();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    byLot.clear();
+                }
+            });
+        }
     }
 }
