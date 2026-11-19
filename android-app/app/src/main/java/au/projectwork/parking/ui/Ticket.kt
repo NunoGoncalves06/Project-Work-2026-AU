@@ -152,6 +152,17 @@ private val StarBorder = ImageVector.Builder("StarBorder", 24.dp, 24.dp, 24f, 24
     fill = SolidColor(androidx.compose.ui.graphics.Color.Black),
 ).build()
 
+// material "light_mode" / "dark_mode": the theme button shows the theme a tap switches to
+val SunIcon = ImageVector.Builder("Sun", 24.dp, 24.dp, 24f, 24f).addPath(
+    addPathNodes("M12,7c-2.76,0 -5,2.24 -5,5s2.24,5 5,5s5,-2.24 5,-5S14.76,7 12,7zM2,13h2c0.55,0 1,-0.45 1,-1s-0.45,-1 -1,-1H2c-0.55,0 -1,0.45 -1,1S1.45,13 2,13zM20,13h2c0.55,0 1,-0.45 1,-1s-0.45,-1 -1,-1h-2c-0.55,0 -1,0.45 -1,1S19.45,13 20,13zM11,2v2c0,0.55 0.45,1 1,1s1,-0.45 1,-1V2c0,-0.55 -0.45,-1 -1,-1S11,1.45 11,2zM11,20v2c0,0.55 0.45,1 1,1s1,-0.45 1,-1v-2c0,-0.55 -0.45,-1 -1,-1S11,19.45 11,20zM5.99,4.58c-0.39,-0.39 -1.03,-0.39 -1.41,0c-0.39,0.39 -0.39,1.03 0,1.41l1.06,1.06c0.39,0.39 1.03,0.39 1.41,0s0.39,-1.03 0,-1.41L5.99,4.58zM18.36,16.95c-0.39,-0.39 -1.03,-0.39 -1.41,0c-0.39,0.39 -0.39,1.03 0,1.41l1.06,1.06c0.39,0.39 1.03,0.39 1.41,0c0.39,-0.39 0.39,-1.03 0,-1.41L18.36,16.95zM19.42,5.99c0.39,-0.39 0.39,-1.03 0,-1.41c-0.39,-0.39 -1.03,-0.39 -1.41,0l-1.06,1.06c-0.39,0.39 -0.39,1.03 0,1.41s1.03,0.39 1.41,0L19.42,5.99zM7.05,18.36c0.39,-0.39 0.39,-1.03 0,-1.41c-0.39,-0.39 -1.03,-0.39 -1.41,0l-1.06,1.06c-0.39,0.39 -0.39,1.03 0,1.41s1.03,0.39 1.41,0L7.05,18.36z"),
+    fill = SolidColor(androidx.compose.ui.graphics.Color.Black),
+).build()
+
+val MoonIcon = ImageVector.Builder("Moon", 24.dp, 24.dp, 24f, 24f).addPath(
+    addPathNodes("M12,3c-4.97,0 -9,4.03 -9,9s4.03,9 9,9s9,-4.03 9,-9c0,-0.46 -0.04,-0.92 -0.1,-1.36c-0.98,1.37 -2.58,2.26 -4.4,2.26c-2.98,0 -5.4,-2.42 -5.4,-5.4c0,-1.81 0.89,-3.42 2.26,-4.4C12.92,3.04 12.46,3 12,3z"),
+    fill = SolidColor(androidx.compose.ui.graphics.Color.Black),
+).build()
+
 @Composable
 fun FavouriteToggle(favourite: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
     IconToggleButton(checked = favourite, onCheckedChange = { onToggle() }, modifier = modifier) {
