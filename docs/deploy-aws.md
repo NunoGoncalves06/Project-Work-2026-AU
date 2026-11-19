@@ -82,6 +82,7 @@ Source: `.env.example` (copy it, never commit `.env`). `docker-compose.prod.yml`
 | `POSTGRES_PASSWORD` | yes | Owner login of the database (also used by the Flyway migrations). Postgres only reads it while its volume is empty. |
 | `APP_DB_PASSWORD` | yes | The backend's own database login `parking_app` (rows only, no schema changes). Set again on every start, so changing it here and restarting changes it. 16 or more letters and digits only, e.g. `openssl rand -hex 24`. |
 | `COGNITO_REGION`, `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`, `COGNITO_DOMAIN` | all four or none | Admin dashboard login, see `docs/admin-dashboard.md`. `COGNITO_DOMAIN` is the host only, without `https://`. With none, the admin API refuses everything (503). With only some, the backend does not start. |
+| `MQTT_CLIENT_ID` | optional | The backend's MQTT client id. Set it to a value that is not public (not the default name); unset = random per start, so queued sensor messages do not survive a restart. |
 | `MQTT_USERNAME`, `MQTT_PASSWORD` | yes | The backend's broker login; must also be a user in `mqtt/config/pwfile`. |
 | `SENSOR_PASSWORD` | when creating `pwfile` | The sensors' login. Not read by compose. |
 | `ADMIN_AUTH` | never on the server | `off` removes the login completely. For local development only. `docker-compose.prod.yml` does not pass it on. |

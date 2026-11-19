@@ -10,13 +10,14 @@ import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 import java.util.random.RandomGenerator;
 
@@ -60,7 +61,8 @@ public class SimulatorService {
     private Instant startedAt;
     private Instant endsAt;
     private int changes;
-    private final Set<Integer> touched = new HashSet<>();
+    // spot -> its occupied value when the simulation first changed it
+    private final Map<Integer, Boolean> touched = new HashMap<>();
 
     public SimulatorService(JdbcTemplate jdbc, ParkingSpotMeasurementService measurements, TaskScheduler scheduler,
             Clock clock, RandomGenerator random) {
@@ -162,26 +164,26 @@ public class SimulatorService {
             }
             SensorSpot pick = candidates.get(random.nextInt(candidates.size()));
             measurements.record(pick.sensorId(), occupy, true);
-            touched.add(pick.spotId());
+            touched.putIfAbsent(pick.spotId(), pick.occupied());
             changes++;
         }
     }
 
-    // each touched spot goes back to its last real reading (free if it has none): a direct update, no new history row
+    // each touched spot goes back to a real reading made during the run, else to what it was when first touched: a direct update, no new history row
     private Integer stopLocked() {
         if (task == null) {
             return null;
         }
         task.cancel(false);
         task = null;
-        for (int spotId : touched) {
+        for (var e : touched.entrySet()) {
             jdbc.update("""
                     UPDATE parking_spots sp SET updated_at = now(), occupied = coalesce((
                         SELECT m.occupied FROM parking_spot_measurements m
                         JOIN parking_spot_sensors s ON s.parking_spot_sensor_id = m.parking_spot_sensor_id
-                        WHERE s.parking_spot_id = sp.parking_spot_id AND NOT m.simulated
-                        ORDER BY m.measured_at DESC, m.parking_spot_measurement_id DESC LIMIT 1), false)
-                    WHERE sp.parking_spot_id = ?""", spotId);
+                        WHERE s.parking_spot_id = sp.parking_spot_id AND NOT m.simulated AND m.measured_at >= ?
+                        ORDER BY m.measured_at DESC, m.parking_spot_measurement_id DESC LIMIT 1), ?)
+                    WHERE sp.parking_spot_id = ?""", Timestamp.from(startedAt), e.getValue(), e.getKey());
         }
         touched.clear();
         return lotId;

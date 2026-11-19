@@ -54,7 +54,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "cognito.region=eu-north-1",
         "cognito.user-pool-id=eu-north-1_Test",
         "cognito.client-id=test-client",
-        "cognito.domain=https://test.auth.eu-north-1.amazoncognito.com"})
+        "cognito.domain=test.auth.eu-north-1.amazoncognito.com"})
 @Import({SecurityConfig.class, AdminAuth.class, SecurityRolesTests.StandInRoutes.class})
 class SecurityRolesTests {
 
@@ -187,7 +187,7 @@ class SecurityRolesTests {
                 .andExpect(jsonPath("$.region").value("eu-north-1"))
                 .andExpect(jsonPath("$.userPoolId").value("eu-north-1_Test"))
                 .andExpect(jsonPath("$.clientId").value("test-client"))
-                .andExpect(jsonPath("$.domain").value("https://test.auth.eu-north-1.amazoncognito.com"));
+                .andExpect(jsonPath("$.domain").value("test.auth.eu-north-1.amazoncognito.com"));
     }
 
     @Test
