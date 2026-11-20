@@ -49,7 +49,6 @@ trap 'rm -rf -- "$REQ"; if [ "$begun" = 1 ] && [ "$final" = 0 ]; then finish err
 
 exec 9>"$LOCK_FILE"
 "$FLOCK" -w 300 9 || exit 0 # still busy after 5 minutes: give up, touch nothing else
-rm -rf -- "$REQ"
 
 # at most one run per cooldown: repeated requests cannot keep the server busy
 last=$(grep -o '"finishedAt":"[^"]*"' "$STATUS" 2>/dev/null | cut -d'"' -f4 || true)
@@ -61,6 +60,8 @@ fi
 begun=1; started=$(now)
 : > "$LOG"; chmod 644 "$LOG"
 write_status updating "Update started"
+# only now: until "updating" is written, the request is what makes the dashboard say Updating (and keep polling)
+rm -rf -- "$REQ"
 cd "$APP_DIR"
 
 step fetch as_user timeout 120 "$GIT" -C "$APP_DIR" fetch origin main \
