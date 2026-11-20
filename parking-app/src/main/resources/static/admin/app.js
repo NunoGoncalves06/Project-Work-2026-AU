@@ -699,12 +699,16 @@ function route() {
   if (document.activeElement !== document.body && !view.contains(document.activeElement)) view.focus({ preventScroll: true });
 }
 
+/** No answer, or Caddy's 502/503/504 while the server restarts (an update): try again by itself. */
+function unreachable() {
+  screen('The server cannot be reached', 'It may be restarting. This page tries again by itself every few seconds.',
+    h('button', { class: 'btn btn-ink', type: 'button', onclick: () => location.reload() }, 'Try again'));
+  setTimeout(() => location.reload(), 5000);
+}
+
 async function boot() {
   let config;
-  try { config = await auth.loadConfig(); } catch (e) {
-    screen('The server cannot be reached', e.message, h('button', { class: 'btn btn-ink', type: 'button', onclick: () => location.reload() }, 'Try again'));
-    return;
-  }
+  try { config = await auth.loadConfig(); } catch { unreachable(); return; }
   if (config.mode === 'unconfigured') {
     screen('Admin login is not set up', 'This server has no COGNITO_* settings, so nobody can sign in. Set them in .env and restart the app.');
     return;
@@ -716,9 +720,10 @@ async function boot() {
   let res;
   try { res = await auth.api('/api/admin/me'); } catch (e) {
     if (e instanceof auth.LoginRequired) signIn('Your session has ended. Sign in again.');
-    else screen('The server cannot be reached', 'Check your connection and try again.');
+    else unreachable();
     return;
   }
+  if (RESTARTING.includes(res.status)) { unreachable(); return; }
   if (res.status === 403) {
     screen('Your account has no role yet', 'Ask an admin to add you to the viewer, operator or admin group, then sign in again.',
       h('button', { class: 'btn', type: 'button', onclick: auth.logout }, 'Log out'));
