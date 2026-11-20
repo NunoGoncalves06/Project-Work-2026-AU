@@ -50,7 +50,7 @@ public class EntranceMeasurementListener {
                 if (entranceSensorId == null || !entranceSensorId.isIntegralNumber() || measuredValue == null
                         || !measuredValue.isIntegralNumber()) {
                     throw new IllegalArgumentException(
-                            "expected an integer entrance_sensor_id and an integer dir");
+                            "expected an integer device_id and an integer dir");
                 }
                 DbRetry.run(() -> entranceMeasurementService.record(entranceSensorId.asInt(), measuredValue.asInt()));
             }

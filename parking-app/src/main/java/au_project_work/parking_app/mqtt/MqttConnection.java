@@ -61,8 +61,7 @@ public class MqttConnection {
     public MqttPahoClientFactory mqttClientFactory() {
         MqttConnectOptions options = new MqttConnectOptions();
         options.setServerURIs(new String[] { "tcp://mosquitto:1883" });
-        // the broker restarting, or a blip on the lab wifi, otherwise leaves the
-        // adapter
+        // the broker restarting, or a blip on the lab wifi, otherwise leaves the adapter
         // disconnected for good and sensor messages stop arriving silently
         options.setAutomaticReconnect(true);
         // the broker keeps this client's subscriptions and queues QoS 1 messages while the
@@ -97,7 +96,7 @@ public class MqttConnection {
         MqttPahoMessageDrivenChannelAdapter adapter = new MqttPahoMessageDrivenChannelAdapter(
                 clientId(),
                 mqttClientFactory(),
-                "carcounter/#"); // handle other messages?
+                "carcounter/#"); // other topics are dropped
         adapter.setCompletionTimeout(5000);
         adapter.setConverter(new DefaultPahoMessageConverter());
         adapter.setQos(1);

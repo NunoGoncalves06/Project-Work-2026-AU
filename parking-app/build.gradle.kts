@@ -26,7 +26,7 @@ dependencies {
 	runtimeOnly("org.flywaydb:flyway-database-postgresql")
 	implementation("org.springframework.boot:spring-boot-starter-integration")
 	implementation("org.springframework.integration:spring-integration-mqtt")
-	implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5") //think about version
+	implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
 	testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server-test")

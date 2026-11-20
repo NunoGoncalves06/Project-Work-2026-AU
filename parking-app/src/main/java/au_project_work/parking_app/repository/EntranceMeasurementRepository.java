@@ -23,7 +23,8 @@ public interface EntranceMeasurementRepository extends CrudRepository<EntranceMe
      * 04:00 Aarhus time, plus the entrance readings since then. Each spot reading is a state, not
      * a +1/-1, so the start value is reliable, and entrance drift is gone after a day at most. The
      * lot can stay open: it only assumes nobody is driving around looking for a spot at 04:00.
-     * Not used yet (demo testing); switch in ParkingLotController.toDetail.
+     * Not used yet, on purpose: kept switched off until the demo testing is done; to turn it on, switch in
+     * ParkingLotController.toDetail.
      *
      * shortcut: reads the lot's whole spot history on each call; add an index on
      * parking_spot_measurements (parking_spot_sensor_id, measured_at) if that history gets big.

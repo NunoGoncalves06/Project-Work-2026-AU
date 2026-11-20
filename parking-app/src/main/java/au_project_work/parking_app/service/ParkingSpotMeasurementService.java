@@ -11,9 +11,7 @@ import au_project_work.parking_app.repository.ParkingSpotSensorRepository;
 
 /**
  * The one place a spot sensor reading is recorded (called by the MQTT listener).
- * It updates parking_spots.occupied as well as appending history: the MQTT path
- * used to only append history, which left the app showing stale numbers however
- * often it refreshed.
+ * It updates parking_spots.occupied and appends the history row.
  */
 @Service
 public class ParkingSpotMeasurementService {

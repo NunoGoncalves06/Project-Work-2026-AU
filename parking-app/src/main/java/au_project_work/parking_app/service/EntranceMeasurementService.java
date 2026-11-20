@@ -35,7 +35,7 @@ public class EntranceMeasurementService {
         EntranceSensor sensor = entranceSensorRepository.findById(entranceSensorId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown entrance sensor " + entranceSensorId));
         Instant now = Instant.now();
-        // here we only need to save - amount of currently parked cards is determined on
+        // here we only need to save - amount of currently parked cars is determined on
         // request
         entranceMeasurementRepository.save(new EntranceMeasurement(sensor.getId(), measuredValue, now));
     }
