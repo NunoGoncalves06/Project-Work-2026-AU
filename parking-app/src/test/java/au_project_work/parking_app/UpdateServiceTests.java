@@ -60,11 +60,18 @@ class UpdateServiceTests {
     @Test
     void updatingWhileTheRunIsActiveOrARequestWaits() throws IOException {
         remote(A, B);
-        status("updating", "", Instant.now(), null, "Update started");
-        assertEquals("Updating", service.status().state());
+        status("updating", "", Instant.now(), null, "Waiting for GitHub to finish building the new version");
+        Status running = service.status();
+        assertEquals("Updating", running.state());
+        assertEquals(A, running.localSha()); // the versions stay known while it runs
+        assertEquals(B, running.remoteSha());
+        assertEquals("Waiting for GitHub to finish building the new version", running.message());
         file("status.json", "");
         Files.createFile(dir.resolve("inbox/request"));
-        assertEquals("Updating", service.status().state());
+        Status pending = service.status();
+        assertEquals("Updating", pending.state());
+        assertEquals(A, pending.localSha());
+        assertEquals(null, pending.message()); // no run yet: nothing to report
     }
 
     @Test

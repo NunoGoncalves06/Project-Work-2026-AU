@@ -47,6 +47,8 @@ const tear = () => h('hr', { class: 'tear' });
 const fullStamp = () => h('span', { class: 'stamp-full', text: 'FULL' });
 const lotName = lot => `${lot.address.street} ${lot.address.houseNr}`;
 const time = d => d.toLocaleTimeString('en-GB');
+// what Caddy answers while the backend restarts during an update
+const RESTARTING = [502, 503, 504];
 const shortSha = s => (s ? s.slice(0, 7) : 'unknown');
 
 function printStamp() {
@@ -586,35 +588,49 @@ async function pageUpdate() {
   async function loadLog() {
     try {
       const res = await auth.api('/api/admin/update/log');
+      if (RESTARTING.includes(res.status)) return; // the server restarts during an update: keep the last text
       logText.textContent = res.ok ? (await res.text()) || '(no log yet)' : await reason(res);
       logText.scrollTop = logText.scrollHeight;
     } catch (e) { /* the server restarts during an update: keep the last text */ }
   }
   logBox.addEventListener('toggle', () => { if (logBox.open) loadLog(); });
 
+  /** Takes a new status, keeping the versions already known if this answer has none. */
+  function adopt(next) {
+    s = { ...next, localSha: next.localSha ?? s?.localSha, remoteSha: next.remoteSha ?? s?.remoteSha };
+  }
+
+  /** The update restarts the backend: Caddy answers 502 (or nothing) until it is back. Not an error: keep asking. */
+  function restarting() {
+    help.textContent = 'The server is restarting with the new version. This page reconnects by itself…';
+    if (!poll) { tries = 0; poll = every(3000, tick); }
+  }
+
   async function load() {
     try {
       const res = await auth.api('/api/admin/update/status');
+      if (RESTARTING.includes(res.status)) { restarting(); return; }
       if (!res.ok) { help.textContent = await reason(res); return; }
-      s = await res.json();
+      adopt(await res.json());
       show();
       if (logBox.open) loadLog();
       watch();
     } catch (e) {
       if (e instanceof auth.LoginRequired) { fail(e); return; }
-      // the server restarts during an update: keep waiting
-      if (s?.state === 'Updating') help.textContent = 'Waiting for the server to come back…';
+      if (s?.state === 'Updating' || !s) restarting(); // no answer at all: the server is down for the restart
       else fail(e);
     }
+  }
+
+  function tick() {
+    if (++tries > 400) { clearInterval(poll); poll = null; help.textContent = 'Still updating after 20 minutes. Check the server.'; return; }
+    load();
   }
 
   function watch() {
     if (s.state === 'Updating' && !poll) {
       tries = 0;
-      poll = every(3000, () => {
-        if (++tries > 400) { clearInterval(poll); help.textContent = 'Still updating after 20 minutes. Check the server.'; return; }
-        load();
-      });
+      poll = every(3000, tick);
     } else if (s.state !== 'Updating' && poll) {
       clearInterval(poll);
       poll = null;
@@ -625,7 +641,7 @@ async function pageUpdate() {
     button.disabled = true;
     try {
       const res = await auth.api('/api/admin/update', { method: 'POST' });
-      if (res.status === 202) { s = await res.json(); say('Update started.'); }
+      if (res.status === 202) { adopt(await res.json()); say('Update started.'); }
       else if (res.status === 409) {
         const body = await res.json().catch(() => ({}));
         if (body.error === 'cooldown') {
