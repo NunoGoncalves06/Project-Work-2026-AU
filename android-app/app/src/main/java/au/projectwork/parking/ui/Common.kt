@@ -119,7 +119,7 @@ fun <T> StateContent(
                     } else {
                         Text("Can't reach the server", style = MaterialTheme.typography.titleLarge)
                         Text(
-                            "Check your connection. AU Parking keeps trying every 5 seconds.",
+                            "Check your connection. AU Parking keeps trying by itself.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = TicketColors.current.faded,
                         )

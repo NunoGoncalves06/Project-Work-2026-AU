@@ -208,7 +208,7 @@ private fun AllFullTicket(offline: Boolean, fetchedAt: Long) {
             FullStamp()
             Text("Every lot is full right now", style = MaterialTheme.typography.titleLarge)
             Text(
-                "Counts update every 5 seconds. Pull down to check again.",
+                "Counts update live. Pull down to check again.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TicketColors.current.faded,
             )

@@ -25,8 +25,8 @@ data class TicketPalette(
     val paper: Color,    // the ticket itself
     val ink: Color,
     val faded: Color,    // secondary print, still >= 4.5:1 on paper
-    val hairline: Color, // tear rules, bay paint on free bays
-    val parking: Color,  // Danish parking blue: P plate and Navigate only
+    val hairline: Color, // tear rules, outline variants
+    val parking: Color,  // Danish parking blue: primary action colour (buttons)
     val onParking: Color,
     val stamp: Color,    // FULL stamp only
 ) {
