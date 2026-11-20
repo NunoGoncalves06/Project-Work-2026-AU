@@ -22,4 +22,18 @@
 		# pass each live-update event (/parking-lots/stream) on immediately instead of buffering it
 		flush_interval -1
 	}
+
+	# the backend is down for a moment during an update: a dashboard opened then would stay a blank 502 page,
+	# so it gets a note that reloads itself. The reload is a script served by Caddy (the CSP allows no inline script),
+	# not a meta refresh: that does not reload a URL with #/update in it
+	handle /admin/restarting.js {
+		header Content-Type "text/javascript; charset=utf-8"
+		respond "setTimeout(() => location.reload(), 5000);"
+	}
+	handle_errors 502 503 504 {
+		@page path /admin /admin/
+		header @page Content-Type "text/html; charset=utf-8"
+		header @page Cache-Control "no-store"
+		respond @page `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>AU Parking admin</title><script src="/admin/restarting.js"></script></head><body><p>The server is restarting. This page reloads by itself in a few seconds.</p></body></html>` 503
+	}
 }
