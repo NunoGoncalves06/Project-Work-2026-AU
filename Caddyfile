@@ -15,6 +15,9 @@
 		Cache-Control "no-store"
 	}
 
+	# the bare address has no page of its own (the backend refuses unknown paths): open the dashboard
+	redir / /admin/
+
 	reverse_proxy parking-app:8080 {
 		# pass each live-update event (/parking-lots/stream) on immediately instead of buffering it
 		flush_interval -1
