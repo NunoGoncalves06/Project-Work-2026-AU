@@ -61,7 +61,9 @@ public class UpdateService {
         Instant finished = time(st, "finishedAt");
         boolean stale = started != null && started.isBefore(Instant.now().minus(RUN_TIMEOUT));
         if (requestPending() || ("updating".equals(run) && !stale)) {
-            return new Status("Updating", null, null, null, null);
+            // the versions stay known while it runs, plus the script's progress line ("Waiting for GitHub ...")
+            return new Status("Updating", sha(text(remote, "localSha")), sha(text(remote, "remoteSha")), null,
+                    "updating".equals(run) ? clean(text(st, "message")) : null);
         }
         String message = clean(text(st, "message"));
         if ("error".equals(run) || "updating".equals(run)) { // an old "updating" is a run that died
