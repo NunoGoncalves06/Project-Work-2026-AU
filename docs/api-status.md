@@ -1,12 +1,14 @@
-# REST API v1: status and handoff
+# REST API v1: status and handoff (historical snapshot)
 
 Date: 2026-10-27
 
+> Historical snapshot from 2026-10-27, kept for reference. The code, the README and `docs/admin-dashboard.md` are the current truth; endpoints, tests and deployment have changed since.
+
 ## Summary
 
-The REST API v1 is finished and covers everything the first version of the Kotlin app needs. All 9 backend tests pass, and the full Docker stack has been started and checked with curl.
+The REST API v1 is finished and covers everything the first version of the Kotlin app needs. When this was written, the backend tests passed and the full Docker stack had been checked with curl.
 
-Full design: [`docs/superpowers/specs/2026-10-26-rest-api-design.md`](superpowers/specs/2026-10-26-rest-api-design.md). The endpoint table is in the [README](../README.md).
+The endpoint table is in the [README](../README.md).
 
 ## What the app can use
 
@@ -98,7 +100,7 @@ To start it again later, run `sudo systemctl start postgresql`.
 
 ## Known gaps (accepted for v1)
 
-- **No authentication on MQTT.** Anyone who can reach the broker can send measurements. That's fine for the demo, but it needs a fix before real deployment.
+- **No authentication on MQTT.** Fixed in production (logins, ACL and TLS on port 8883: `mqtt/config/mosquitto.prod.conf`, `aclfile`). The dev `docker-compose.yml` broker is still anonymous.
 - **Two test gaps:**
   - No test checks that a spot update also writes its history row.
   - A test that fails halfway can leave changed data behind for the next test.

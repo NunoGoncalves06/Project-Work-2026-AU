@@ -63,7 +63,7 @@ Source: `UpdateService.java`, `deploy/au-parking-update.sh`. The page shows the 
 |---|---|---|
 | Updated | Server runs the latest `main`. | disabled |
 | Outdated | `main` has a newer commit. | enabled (admin) |
-| Updating... | A request is pending or an update runs. The page reconnects by itself; it gives up waiting after 15 minutes. | disabled |
+| Updating... | A request is pending or an update runs. The page reconnects by itself; it gives up waiting after 20 minutes. | disabled |
 | Update Successful | Finished in the last 10 minutes. | disabled |
 | Error Updating | The last update failed; the message says why. | enabled (admin), retries |
 | Unavailable | No update service on this server (folder `/var/lib/au-parking-update` missing), or status unknown. | disabled |
@@ -71,16 +71,17 @@ Source: `UpdateService.java`, `deploy/au-parking-update.sh`. The page shows the 
 What the update does, and its limits:
 
 1. At most one update per 5 minutes. A request inside the cooldown is dropped without a message.
-2. It first takes a backup, then pulls the image for the new commit. If that image is not built yet (the GitHub workflow is still running), the status says **New version not built yet, nothing changed**. Wait for the workflow and press the button again.
+2. It first takes a backup, then pulls the image for the new commit. If that image is not built yet (the GitHub workflow is still running), the run waits up to 10 minutes for it, then the status says **New version was not built on GitHub within 10 minutes, nothing changed**. Wait for the workflow and press the button again.
 3. If the new version does not become healthy, it goes back to the previous image and commit ("Update failed, rolled back").
 4. The dashboard pauses for about a minute while the server restarts.
+5. The update page has a log box with the output of the last run (`last-run.log`, `GET /api/admin/update/log`, admin only).
 
 Other status messages come from the script: "Could not fetch the new version, nothing changed", "Backup failed, nothing changed", "Update failed, rolled back", "Update failed, rollback failed".
 
 ## Archiving and simulated readings
 
 - **Archive** hides a lot, row or spot from the app and from the dashboard. Nothing is deleted. It cannot be undone from the dashboard.
-- The history stays in the database, and the sensor readings of an archived spot are still stored. The forecast still uses that history.
+- The history stays in the database, and the sensor readings of an archived spot are still stored. The forecast ignores archived spots and rows.
 - The sensor of an archived spot becomes "parked": it can be moved to another spot (Edit lot, Move a parked sensor here).
 - A **simulated reading** is a reading created by the dashboard (flipping a bay, or the traffic simulator). It is stored with a `simulated` mark. It changes what the app shows, but the forecast ignores it.
 

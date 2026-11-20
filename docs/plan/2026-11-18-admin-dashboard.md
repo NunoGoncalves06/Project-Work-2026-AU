@@ -1,6 +1,8 @@
 # Plan: AU Parking admin dashboard (v2, after review)
 
 Date: 2026-11-18. Auth pattern: the Cognito hosted login with PKCE and roles from groups (docs/admin-dashboard.md), ported to Spring Boot 4.1.1.
+
+> Plan, superseded by docs/deploy-aws.md and docs/admin-dashboard.md (the deployed flow differs in places).
 Load assumed: one t3.micro server, a few admins, tens of spots.
 
 ## Decisions
@@ -8,7 +10,7 @@ Load assumed: one t3.micro server, a few admins, tens of spots.
 - Removing a lot/row/spot archives it (`archived_at`); history stays for the forecast. A spot with no history may be hard-deleted.
 - A physical sensor is moved to another spot (update its `parking_spot_id`), never re-created: its id is the `device_id` the board sends.
 - Simulated readings use the same `record()` path as sensors, marked `simulated = true`; the forecast ignores them.
-- Login fails CLOSED: without the three `COGNITO_*` values every `/api/admin/**` request is refused. Only an explicit `ADMIN_AUTH=off` (dev compose only, never prod) disables it.
+- Login fails CLOSED: without the four `COGNITO_*` values every `/api/admin/**` request is refused. Only an explicit `ADMIN_AUTH=off` (dev compose only, never prod) disables it.
 - Database migrations are additive only (add columns/tables/indexes; never rename or drop), so rolling back to the previous image stays possible.
 - Dashboard: plain HTML/JS at `/admin/`, same origin as the API, styled after the app (`android-app/.../ui/theme/Theme.kt`, `ui/Ticket.kt`), designed with `/impeccable` and `frontend-design`.
 
@@ -32,7 +34,7 @@ Operator routes: set one spot free/taken (same `record()` as sensors, `simulated
 Acceptance: unit test with a seeded random source; tests for the 60-minute auto-stop, single instance, and restore on stop.
 
 ## Step 5: Add the one-click server update system
-GitHub Actions builds the backend image on push to `main` and pushes `ghcr.io/...:latest` and `:<sha>`. `docker-compose.prod.yml` gets `name: au-parking` (volumes keep their names whatever the folder) and uses the GHCR image. `deploy/au-parking-update.sh` (root, fixed, no input): flock; `backup-db.sh`; git fetch/reset to `origin/main` run as `ec2-user`; re-apply `aclfile` (1883, 600) and `chmod a+rX db`; reinstall `/usr/local/sbin` scripts and systemd units then `daemon-reload`; `compose pull` + `up -d`; `caddy reload`; health check; on failure roll back to the previous image tag; write a status JSON. A `.path` unit reacts to the request file written by the backend into one shared folder; a 5-minute timer records whether the checkout is behind. Backend exposes the states Updated / Outdated / Updating... / Error Updating / Update Successful and never gets Docker access.
+GitHub Actions builds the backend image on push to `main` and pushes `ghcr.io/...:latest` and `:<sha>`. `docker-compose.prod.yml` gets `name: au-parking` (volumes keep their names whatever the folder) and uses the GHCR image. `deploy/au-parking-update.sh` (root, fixed, no input): flock; `backup-db.sh`; git fetch/reset to `origin/main` run as `ec2-user`; re-apply `aclfile` (1883, 600) and `chmod a+rX db`; reinstall `/usr/local/sbin` scripts and systemd units then `daemon-reload`; `docker pull <sha>`, tag `:current`, `up -d` (Caddy is force-recreated only if the Caddyfile changed); health check; on failure roll back to the previous image tag; write a status JSON. A `.path` unit reacts to the request file written by the backend into one shared folder; a 5-minute timer records whether the checkout is behind. Backend exposes the states Updated / Outdated / Updating... / Error Updating / Update Successful and never gets Docker access.
 Acceptance: self-check with fake `git`/`docker` for success, failure with rollback, concurrent requests, and already up to date; the backend can only write the request file.
 Out of scope: database rollbacks (migrations are additive).
 
@@ -53,6 +55,6 @@ Code review and security review of Steps 2, 3 and 5 by a different model than th
 ## Manual: AWS and GitHub (done by hand, in order)
 1. Before anything: `pg_dump --schema-only` on the server and compare with V1; take a `backup-db` backup.
 2. GitHub: protect `main`; after the first workflow run, make the GHCR package public (no secrets in it).
-3. CloudShell (instance's region): run `deploy/cognito.sh` with callback `https://au-parking.duckdns.org/admin/`; create users with the CLI block in docs/admin-dashboard.md; turn on MFA for admins.
+3. CloudShell (instance's region): run the CLI steps in docs/admin-dashboard.md with callback `https://au-parking.duckdns.org/admin/`; create users with the CLI block in docs/admin-dashboard.md; turn on MFA for admins.
 4. Server: read-only deploy key; convert `~/au-parking` to a git checkout in the same folder, keeping `.env` and `pwfile`; add the `COGNITO_*` lines; install the update units.
 5. First run: `up -d`, log in at `/admin/` with each role, then press Update.

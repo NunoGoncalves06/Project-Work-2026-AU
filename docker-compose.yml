@@ -47,4 +47,3 @@ services:
     volumes:
       - ./mqtt/config:/mosquitto/config #to load config to container
       - ./mqtt/data:/mosquitto/data #file used to store data
-      - ./mqtt/log:/mosquitto/log 

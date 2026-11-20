@@ -23,21 +23,21 @@ Per-spot sensor truth: the app knows exactly which spots are free right now (spo
 
 ## Operating Context
 
-- Data comes from a Spring Boot REST API (`parking-app/`) backed by Postgres (`db/init`, schema owned by a teammate). The app polls every 5 s while visible.
+- Data comes from a Spring Boot REST API (`parking-app/`) backed by Postgres (`db/init`, schema owned by a teammate). Live updates come over SSE (`/parking-lots/stream`) with a 60 s safety poll while the stream is connected, and a 5 s poll when the stream is down.
 - Used outdoors and in cars: bright sunlight, one hand, possibly poor connectivity.
 - University group project (Aarhus University); demoed on a physical Android phone and emulator.
 
 ## Capabilities and Constraints
 
 - v1 (shipped): lot list with free/total counts, lot detail with a per-row spot grid, open address in Google Maps, pull-to-refresh, offline banner when a refresh fails.
-- v2 scope (confirmed): **favourite lots**, **offline cache across restarts**, **nearby / sort by distance** using the phone's location.
-- Distance needs lot coordinates, which the DB and API don't have yet. Adding `latitude`/`longitude` to `addresses` touches the teammate-owned schema.
+- v2 (shipped): **favourite lots**, **offline cache across restarts**, **nearby / sort by distance** using the phone's location, plus a forecast card, a theme toggle and live updates (SSE).
+- Distance uses the lot coordinates (`latitude`/`longitude` on `addresses`, in the DB and the API).
 - Explicitly out of v2: map view with pins, free-spot notifications, reservations, accounts/auth.
 - Stack: Kotlin, Jetpack Compose, Material 3, Retrofit + kotlinx.serialization, manual DI (`AppContainer`), minSdk 26, targetSdk 37.
 
 ## Brand Commitments
 
-Name: **AU Parking**. No logo or other assets yet.
+Name: **AU Parking**. AU mark and launcher icon exist; no further brand assets.
 
 ## Evidence on Hand
 

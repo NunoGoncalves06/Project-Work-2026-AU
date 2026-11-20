@@ -1,6 +1,6 @@
 # Deploying to AWS
 
-The whole stack (server, Postgres, Mosquitto) runs on one EC2 instance with Docker Compose, behind Caddy for HTTPS. Files: `docker-compose.prod.yml`, `Caddyfile`, `mqtt/config/mosquitto.prod.conf`, `mqtt/config/aclfile`, `deploy/`, `.env.example`. The local `docker-compose.yml` is unchanged and still what you use on your laptop.
+The whole stack (server, Postgres, Mosquitto) runs on one EC2 instance with Docker Compose, behind Caddy for HTTPS. Files: `docker-compose.prod.yml`, `Caddyfile`, `mqtt/config/mosquitto.prod.conf`, `mqtt/config/aclfile`, `deploy/`, `.env.example`. The local `docker-compose.yml` is still what you use on your laptop.
 
 ## The instance
 
@@ -14,7 +14,9 @@ The whole stack (server, Postgres, Mosquitto) runs on one EC2 instance with Dock
 1. **A hostname for the Elastic IP.** HTTPS needs a name, not a bare IP. Free option: sign in at duckdns.org, create e.g. `au-parking`, set its IP to the Elastic IP. Result: `au-parking.duckdns.org`.
 2. **`.env`** with the passwords is created on the server itself (first deploy, below), so the passwords never sit on a laptop. Keep a copy of it in a password manager: it is the only copy.
 
-## Deploy (from the repo root, in PowerShell)
+## Manual deploy from the laptop (fallback; the normal route is the GHCR image and the update button, see "One-click update")
+
+From the repo root, in PowerShell.
 
 ```powershell
 $key = "$HOME\OneDrive\Desktop\AWS Keys\Project Work Aarhus 2026_2027 Key Pair.pem"
@@ -261,7 +263,7 @@ sudo systemctl enable --now au-parking-update.path au-parking-check.timer
 docker compose -f docker-compose.prod.yml up -d    # remounts the folder into parking-app
 ```
 
-The compose file runs the local tag `au-parking-backend:current`. An update pulls `ghcr.io/nunogoncalves06/au-parking-backend:<new commit sha>` (so the workflow must have finished: otherwise the run stops with "New version not built yet" and changes nothing), tags it `:current`, and keeps the previous image as `:rollback`. Later plain `docker compose up -d` runs keep the deployed version. Once, before the first update, seed the tag (see "Seed the image, GHCR, protect `main`" below). Updates are at most one per 5 minutes. The scripts and units installed by an update come from the new commit (fixed list), so the button keeps them current.
+The compose file runs the local tag `au-parking-backend:current`. An update pulls `ghcr.io/nunogoncalves06/au-parking-backend:<new commit sha>` (so the workflow must have finished: otherwise the run waits up to 10 minutes, then stops with "New version was not built on GitHub within 10 minutes, nothing changed"), tags it `:current`, and keeps the previous image as `:rollback`. Later plain `docker compose up -d` runs keep the deployed version. Once, before the first update, seed the tag (see "Seed the image, GHCR, protect `main`" below). Updates are at most one per 5 minutes. The scripts and units installed by an update come from the new commit (fixed list), so the button keeps them current.
 
 ### Convert `~/au-parking` into a git checkout
 
@@ -334,7 +336,7 @@ docker tag ghcr.io/nunogoncalves06/au-parking-backend:latest au-parking-backend:
 
    or keep the laptop-built image: `docker tag parking-app:prod au-parking-backend:current`.
 
-2. **Make the GHCR package public.** The workflow `.github/workflows/backend-image.yml` runs on every push to `main` (tests, then build and push `:latest` and `:<commit sha>`). After its first successful run: GitHub > your profile > Packages > `au-parking-backend` > Package settings > Change visibility > Public. The image has no secrets in it (they come from `.env` at run time). The server pulls without a login, so a private package makes every update stop at "New version not built yet".
+2. **Make the GHCR package public.** The workflow `.github/workflows/backend-image.yml` runs on every push to `main` (tests, then build and push `:latest` and `:<commit sha>`). After its first successful run: GitHub > your profile > Packages > `au-parking-backend` > Package settings > Change visibility > Public. The image has no secrets in it (they come from `.env` at run time). The server pulls without a login, so a private package makes every update stop at "New version was not built on GitHub within 10 minutes".
 
 3. **Protect `main`.** Whoever can push to `main` decides what runs as root on the server: the update button checks out `origin/main` and installs the scripts and units from it. On GitHub: Settings > Branches > add a rule for `main`: require a pull request with at least 1 approval, do not allow force pushes, do not allow deletion, and include administrators if you can.
 
@@ -385,7 +387,7 @@ curl https://au-parking.duckdns.org/api/health
 ```
 
 10. **Browser:** open `https://au-parking.duckdns.org/admin/` and sign in with one user of each role. Check: a viewer has no Traffic tab, an operator cannot press Update, an admin can add and archive a lot.
-11. **Browser:** go to Server update and press the button when it says Outdated. Wait for "Update Successful". If it says "New version not built yet", the workflow is still running: wait and press again after the 5-minute cooldown.
+11. **Browser:** go to Server update and press the button when it says Outdated. Wait for "Update Successful". If it says "New version was not built on GitHub within 10 minutes", the workflow is still running or failed: wait and press again after the 5-minute cooldown.
 12. Check the audit trail: `docker compose -f docker-compose.prod.yml logs parking-app | grep audit`.
 
 
@@ -393,4 +395,4 @@ curl https://au-parking.duckdns.org/api/health
 
 - **Data** lives in the `pgdata` volume. `down` keeps it; `down -v` deletes it, and the init scripts then run again on the empty database.
 - **Out of memory?** If the server keeps restarting (`docker compose ... ps`, `dmesg | grep -i kill`), stop the instance and change its type to t3.small.
-- **The release APK** (v1.0.0 on GitHub Releases) points at `https://au-parking.duckdns.org/` and is unsigned.
+- **The release APK** points at `https://au-parking.duckdns.org/`; signed releases come from the `android-release` workflow (GitHub Releases).
