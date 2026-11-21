@@ -5,8 +5,7 @@
 # the commit sha: the Gradle build needs more memory than the t3.micro has. The update script pulls the new sha tag and
 # tags it au-parking-backend:current, which is what runs here, so a plain `up -d` keeps the deployed version.
 # PARKING_APP_IMAGE pins another image (the update script does this to roll back). Only Caddy (80/443) and Mosquitto (8883, TLS)
-# are reachable from outside;
-# the database and the raw server port stay on the internal network.
+# are reachable from outside; the database and the raw server port stay on the internal network.
 # fixed, so the volume names (au-parking_pgdata, ...) stay the same whatever the folder is called
 name: au-parking
 

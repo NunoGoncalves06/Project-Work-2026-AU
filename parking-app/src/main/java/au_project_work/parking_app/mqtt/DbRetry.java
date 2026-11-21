@@ -13,7 +13,7 @@ final class DbRetry {
     private DbRetry() {
     }
 
-    /** Runs the action; on a database error waits 1 s, 2 s, 4 s... and retries, for about 30 s in all. */
+    /** Runs the action; on a database error waits 1 s, 2 s, 4 s... and retries, for about 15 s in all (1+2+4+8 s). */
     static void run(Runnable action) {
         long waited = 0;
         long delay = 1_000;

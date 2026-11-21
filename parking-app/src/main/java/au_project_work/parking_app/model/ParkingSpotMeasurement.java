@@ -39,24 +39,4 @@ public class ParkingSpotMeasurement {
         this.measuredAt = measuredAt;
         this.simulated = simulated;
     }
-
-    public boolean isSimulated() {
-        return simulated;
-    }
-
-    public Long getParkingSpotMeasurementId() {
-        return id;
-    }
-
-    public Integer getParkingSpotSensorId() {
-        return parkingSpotSensorId;
-    }
-
-    public Boolean getOccupied() {
-        return occupied;
-    }
-
-    public Instant getMeasuredAt() {
-        return measuredAt;
-    }
 }

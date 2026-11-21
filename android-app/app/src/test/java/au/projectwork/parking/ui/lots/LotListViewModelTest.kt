@@ -121,7 +121,7 @@ class LotListViewModelTest {
     }
 
     @Test
-    fun savesEveryFetchToTheCache() = runTest {
+    fun savesTheFetchedListToTheCache() = runTest {
         repo.lotsResults += Result.success(listOf(lot))
         subscribedViewModel()
         runCurrent()

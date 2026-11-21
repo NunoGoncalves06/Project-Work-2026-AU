@@ -4,7 +4,7 @@
 Run application:
 
 - Requirements: Docker with Compose
-- Start application (parking-app container and db container) with: `docker compose up`
+- Start application (parking-app, db and mosquitto containers) with: `docker compose up`
 - if you want to (re)build the image use: `docker compose up --build`
 - application is then available under http://localhost:8080
 - Stop application with: `docker compose down`
@@ -57,6 +57,6 @@ Android app (`android-app/`):
 - App says "Can't reach the server"? Check in this order:
   1. server up: `curl https://au-parking.duckdns.org/parking-lots` (local backend: `curl localhost:8080/parking-lots`, and if down `docker compose up -d`)
   2. local backend only: forward there: `adb reverse --list` (if empty: `adb reverse tcp:8080 tcp:8080`)
-- Run the **debug** build. Release builds now point at the AWS server too, but have no signing config yet
+- Run the **debug** build. Release builds point at the AWS server too; signed releases come from the `android-release` workflow
 - Low on RAM? Start the emulator with `-memory 1536 -gpu swiftshader_indirect` and stop the Gradle daemons first (`./gradlew --stop`)
 - Unit tests: `cd android-app && ./gradlew :app:testDebugUnitTest`

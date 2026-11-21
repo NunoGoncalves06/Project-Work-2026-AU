@@ -12,7 +12,6 @@ import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.SQLRestriction;
 
-import java.time.Instant;
 import java.util.List;
 
 @Entity
@@ -24,9 +23,6 @@ public class ParkingLot {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "parking_lot_id")
     private Integer id;
-
-    @Column(name = "archived_at")
-    private Instant archivedAt;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "address_id")

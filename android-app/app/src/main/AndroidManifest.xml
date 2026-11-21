@@ -14,7 +14,7 @@
         android:theme="@style/Theme.AuParking">
         <activity
             android:name=".MainActivity"
-            android:exported="true" />
+            android:exported="false" />
 
         <!-- Two launcher entries for the same screen: launchers don't redraw an app icon when the theme changes,
              so MainActivity turns on the one matching the app's theme and turns the other off. Exactly one is on. -->

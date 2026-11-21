@@ -213,7 +213,7 @@ async function pageLots() {
   view.replaceChildren(
     h('div', { class: 'page-head' }, h('h1', { text: 'Lots' }), stamp, chip),
     grid,
-    can('admin') && addLotForm(),
+    can('admin') ? addLotForm() : h('p', { class: 'hint', text: 'Only an admin can add or edit lots.' }),
   );
 
   async function refresh() {
@@ -326,7 +326,7 @@ function buildLot(lot, back, refresh) {
     h('div', { class: 'row-head' }, h('h2', { class: 'section-title', text: 'Rows' }), legend(true)),
     can('operator') && h('p', { class: 'hint', text: 'Select a bay to flip it between free and taken. Bays without a sensor cannot be flipped.' }),
     rows.length ? rows : h('p', { class: 'empty', text: 'This lot has no rows yet.' }),
-    can('admin') && lotTools(lot, refresh));
+    can('admin') ? lotTools(lot, refresh) : h('p', { class: 'hint', text: 'Only an admin can edit this lot.' }));
   return refs;
 }
 

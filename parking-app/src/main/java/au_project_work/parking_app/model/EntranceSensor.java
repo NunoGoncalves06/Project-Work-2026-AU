@@ -13,9 +13,6 @@ public class EntranceSensor {
     @Column(name = "entrance_sensor_id")
     private Integer id;
 
-    @Column(name = "parking_lot_id", nullable = false)
-    private Integer parkingLotId;
-
     public Integer getId() {
         return id;
     }

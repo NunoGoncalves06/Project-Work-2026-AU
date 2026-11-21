@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
-// one-click server update; GET is viewer, POST is admin (SecurityConfig). The backend only drops a request file.
+// one-click server update; GET status is viewer, GET log and POST are admin (SecurityConfig). The backend only drops a request file.
 @RestController
 @RequestMapping("/api/admin/update")
 public class UpdateController {

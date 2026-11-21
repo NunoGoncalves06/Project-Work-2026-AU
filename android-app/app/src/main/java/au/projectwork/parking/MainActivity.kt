@@ -99,7 +99,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Turns on the launcher entry whose icon matches the theme (B1 day / B2 night ticket) and turns the other off.
+     * Turns on the launcher entry whose icon matches the theme (day / night launcher icon) and turns the other off.
      * Does nothing when it already matches, so the launcher is only disturbed when the theme really changed.
      * shortcut: a launcher may drop a home-screen shortcut to the entry turned off; the app drawer always has it.
      */

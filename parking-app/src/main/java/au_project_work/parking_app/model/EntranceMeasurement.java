@@ -35,20 +35,4 @@ public class EntranceMeasurement {
         this.measuredValue = measuredValue;
         this.measuredAt = measuredAt;
     }
-
-    public Long getEntranceMeasurementId() {
-        return entranceMeasurementId;
-    }
-
-    public Integer getEntranceSensorId() {
-        return entranceSensorId;
-    }
-
-    public Integer getMeasuredValue() {
-        return measuredValue;
-    }
-
-    public Instant getMeasuredAt() {
-        return measuredAt;
-    }
 }

@@ -23,9 +23,6 @@ public class ParkingSpot {
     @Column(name = "parking_spot_id")
     private Integer id;
 
-    @Column(name = "archived_at")
-    private Instant archivedAt;
-
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "parking_row_id")
     private ParkingRow parkingRow;
