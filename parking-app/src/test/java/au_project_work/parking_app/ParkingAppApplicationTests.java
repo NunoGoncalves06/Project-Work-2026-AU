@@ -304,7 +304,7 @@ class ParkingAppApplicationTests {
     @Test
     void sensorMovedToAnotherLotLeavesItsOldHistoryBehind() {
         // sensor 16 has history in lot 1; its spot is archived and the sensor is attached to a spot of a new lot
-        int lot = adminService.createLot(new CreateLotRequest("Teststreet", "1", "Aarhus", 56.0, 10.0));
+        int lot = adminService.createLot(new CreateLotRequest("Teststreet", "1", "Aarhus", 56.0, 10.0, null));
         int row = adminService.addRow(lot);
         adminService.archiveSpot(16);
         int spot = adminService.addSpot(row, 16);

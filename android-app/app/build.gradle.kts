@@ -14,8 +14,8 @@ android {
         applicationId = "au.projectwork.parking"
         minSdk = 26
         targetSdk = 37
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 5
+        versionName = "1.4"
     }
 
     // Default: the shared server on AWS (docs/deploy-aws.md), so a plain build shows real data.

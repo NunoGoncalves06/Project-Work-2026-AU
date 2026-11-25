@@ -23,6 +23,8 @@ data class LotSummary(
     val totalSpots: Int,
     val freeSpots: Int,
     val carsInside: Int,
+    // "spots" (a sensor on every spot) or "entrance" (only a gate counting cars in and out: free = spots - carsInside)
+    val countedBy: String = "spots",
 )
 
 @Serializable
@@ -41,6 +43,7 @@ data class LotDetail(
     val rows: List<Row>,
     // empty until the lot has a few weeks of sensor history
     val forecast: List<Forecast> = emptyList(),
+    val countedBy: String = "spots",
 )
 
 /** Free spots usually seen at [at] (an ISO instant, a full hour) on this weekday. */

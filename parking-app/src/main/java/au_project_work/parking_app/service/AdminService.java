@@ -72,7 +72,7 @@ public class AdminService {
             return new AdminLotDto(lot.getId(),
                     new AddressDto(a.getStreet(), a.getHouseNr(), a.getCity(), a.getLatitude(), a.getLongitude()),
                     rows, entranceOfLot.getOrDefault(lot.getId(), List.of()),
-                    entranceMeasurementRepository.carsInside(lot.getId())); // same count as the app (ParkingLotController)
+                    entranceMeasurementRepository.carsInside(lot.getId()), lot.getCountedBy()); // same count as the app (ParkingLotController)
         }).toList();
     }
 
@@ -81,8 +81,16 @@ public class AdminService {
         Integer addressId = jdbc.queryForObject(
                 "INSERT INTO addresses (city, street, house_nr, latitude, longitude) VALUES (?, ?, ?, ?, ?) RETURNING address_id",
                 Integer.class, r.city(), r.street(), r.houseNr(), r.latitude(), r.longitude());
-        return jdbc.queryForObject("INSERT INTO parking_lots (address_id) VALUES (?) RETURNING parking_lot_id",
-                Integer.class, addressId);
+        return jdbc.queryForObject("INSERT INTO parking_lots (address_id, counted_by) VALUES (?, ?) RETURNING parking_lot_id",
+                Integer.class, addressId, r.countedBy() == null ? "spots" : r.countedBy());
+    }
+
+    @Transactional
+    public void setCounting(int lotId, String countedBy) {
+        forecastCache.clear(); // an entrance lot has no forecast
+        if (jdbc.update("UPDATE parking_lots SET counted_by = ? WHERE parking_lot_id = ? AND archived_at IS NULL", countedBy, lotId) == 0) {
+            throw notFound();
+        }
     }
 
     @Transactional

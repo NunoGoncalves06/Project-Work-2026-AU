@@ -1,6 +1,7 @@
 package au_project_work.parking_app.api;
 
 import au_project_work.parking_app.api.Dtos.AdminLotDto;
+import au_project_work.parking_app.api.Dtos.CountingRequest;
 import au_project_work.parking_app.api.Dtos.CreateLotRequest;
 import au_project_work.parking_app.api.Dtos.IdDto;
 import au_project_work.parking_app.api.Dtos.MoveSensorRequest;
@@ -62,6 +63,14 @@ public class AdminController {
         int id = service.createLot(body);
         audit(auth, "create lot", "lot=" + id);
         return new IdDto(id);
+    }
+
+    @PutMapping("/lots/{id}/counting")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void setCounting(@PathVariable int id, @Valid @RequestBody CountingRequest body,
+            @CurrentSecurityContext(expression = "authentication") Authentication auth) {
+        service.setCounting(id, body.countedBy());
+        audit(auth, "set lot counting", "lot=" + id + " countedBy=" + body.countedBy());
     }
 
     @PostMapping("/lots/{lotId}/rows")

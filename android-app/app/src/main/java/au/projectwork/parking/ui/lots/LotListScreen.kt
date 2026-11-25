@@ -166,7 +166,7 @@ private fun HeroTicket(
         HeroReason.Favourite -> "Favourite with space"
         HeroReason.MostSpace -> "Most space now"
     }
-    Ticket(Modifier.fillMaxWidth().clickable(onClickLabel = "See spots", onClick = onOpen)) {
+    Ticket(Modifier.fillMaxWidth().clickable(onClickLabel = openLabel(lot), onClick = onOpen)) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
                 // merged so TalkBack reads "12 of 16 free" as one phrase
@@ -184,7 +184,7 @@ private fun HeroTicket(
                 }
                 FieldLabel(listOfNotNull(why, hero.row.distanceMeters?.let(::formatDistance), lot.address.city).joinToString(" · "))
             }
-            if (spots != null) {
+            if (spots != null && lot.countedBy != "entrance") {
                 PaintedBays(spots.rows.flatMap { it.spots }, maxBayWidth = 32.dp, bayHeight = 40.dp, maxLines = 1)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -193,7 +193,7 @@ private fun HeroTicket(
                     Spacer(Modifier.width(6.dp))
                     Text("Navigate")
                 }
-                OutlinedButton(onClick = onOpen, modifier = Modifier.weight(1f)) { Text("See spots") }
+                OutlinedButton(onClick = onOpen, modifier = Modifier.weight(1f)) { Text(openLabel(lot)) }
             }
             TearRule()
             PrintStamp(fetchedAt, offline, printKey = lot.freeSpots to spots)
@@ -241,7 +241,7 @@ private fun EmptyList(filter: LotFilter, onlyHero: Boolean) {
 private fun LotTicket(row: LotRow, stale: Boolean, onClick: () -> Unit, onToggleFavourite: () -> Unit) {
     val c = TicketColors.current
     val lot: LotSummary = row.lot
-    Ticket(Modifier.fillMaxWidth().clickable(onClickLabel = "See spots", onClick = onClick)) {
+    Ticket(Modifier.fillMaxWidth().clickable(onClickLabel = openLabel(lot), onClick = onClick)) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ParkingPlate()
@@ -273,3 +273,6 @@ private fun LotTicket(row: LotRow, stale: Boolean, onClick: () -> Unit, onToggle
         }
     }
 }
+
+/** A gate-counted lot has no spot grid to show, so its details page is not "spots". */
+private fun openLabel(lot: LotSummary) = if (lot.countedBy == "entrance") "See details" else "See spots"

@@ -28,6 +28,10 @@ public class ParkingLot {
     @JoinColumn(name = "address_id")
     private Address address;
 
+    // "spots" or "entrance": see V5__lot_counting.sql
+    @Column(name = "counted_by", nullable = false)
+    private String countedBy;
+
     @OneToMany(mappedBy = "parkingLot")
     @OrderBy("id")
     private List<ParkingRow> rows;
@@ -38,6 +42,10 @@ public class ParkingLot {
 
     public Address getAddress() {
         return address;
+    }
+
+    public String getCountedBy() {
+        return countedBy;
     }
 
     public List<ParkingRow> getRows() {
