@@ -96,7 +96,15 @@ class AdminApiTests {
         mvc.perform(get("/api/admin/lots").with(as("VIEWER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.id == " + lot + ")].rows[0].spots[0].sensorId").value(9101))
-                .andExpect(jsonPath("$[?(@.id == " + lot + ")].entranceSensorIds[0]").value(9102));
+                .andExpect(jsonPath("$[?(@.id == " + lot + ")].entranceSensorIds[0]").value(9102))
+                .andExpect(jsonPath("$[?(@.id == " + lot + ")].carsInside").value(0)); // a new gate has counted nobody yet
+        // the dashboard shows the same cars-inside count as the app's public route
+        long inside = jdbc.queryForObject("""
+                SELECT GREATEST(0, COALESCE(SUM(m.measured_value), 0)) FROM entrance_measurements m
+                JOIN entrance_sensors s ON s.entrance_sensor_id = m.entrance_sensor_id WHERE s.parking_lot_id = 1""", Long.class);
+        mvc.perform(get("/api/admin/lots").with(as("VIEWER")))
+                .andExpect(jsonPath("$[?(@.id == 1)].carsInside").value((int) inside));
+        mvc.perform(get("/parking-lots/1")).andExpect(jsonPath("$.carsInside").value((int) inside));
     }
 
     @Test

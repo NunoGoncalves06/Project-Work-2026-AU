@@ -55,7 +55,8 @@ public final class Dtos {
     public record AdminRowDto(Integer id, List<AdminSpotDto> spots) {
     }
 
-    public record AdminLotDto(Integer id, AddressDto address, List<AdminRowDto> rows, List<Integer> entranceSensorIds) {
+    public record AdminLotDto(Integer id, AddressDto address, List<AdminRowDto> rows, List<Integer> entranceSensorIds,
+            long carsInside) {
     }
 
     public record IdDto(Integer id) {
