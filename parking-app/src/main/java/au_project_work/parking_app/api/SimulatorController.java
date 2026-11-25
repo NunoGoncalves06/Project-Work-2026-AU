@@ -1,5 +1,6 @@
 package au_project_work.parking_app.api;
 
+import au_project_work.parking_app.api.Dtos.GateReadingRequest;
 import au_project_work.parking_app.api.Dtos.SpotReadingRequest;
 import au_project_work.parking_app.api.Dtos.StartTrafficRequest;
 import au_project_work.parking_app.api.Dtos.TrafficStatusDto;
@@ -33,6 +34,13 @@ public class SimulatorController {
             @CurrentSecurityContext(expression = "authentication") Authentication auth) {
         service.setSpot(spotId, body.occupied());
         AdminController.audit(auth, "simulate spot", "spot=" + spotId + " occupied=" + body.occupied());
+    }
+
+    @PostMapping("/lots/{lotId}/entrance")
+    public void gate(@PathVariable int lotId, @Valid @RequestBody GateReadingRequest body,
+            @CurrentSecurityContext(expression = "authentication") Authentication auth) {
+        service.gate(lotId, body.dir());
+        AdminController.audit(auth, "simulate gate", "lot=" + lotId + " dir=" + body.dir());
     }
 
     @PostMapping("/traffic")

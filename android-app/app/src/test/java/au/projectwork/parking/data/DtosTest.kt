@@ -47,6 +47,16 @@ class DtosTest {
     }
 
     @Test
+    fun decodesHowALotIsCounted() {
+        val json = """{ "id": 2, "address": { "street": "Gate St", "houseNr": "1", "city": "Aarhus" },
+            "totalSpots": 20, "freeSpots": 15, "carsInside": 5, "countedBy": "entrance" }"""
+        assertEquals("entrance", ParkingJson.decodeFromString<LotSummary>(json).countedBy)
+        assertEquals("entrance", ParkingJson.decodeFromString<LotDetail>(json.replace("}", ", \"rows\": [] }")).countedBy)
+        // older backends send nothing: counted by spots
+        assertEquals("spots", ParkingJson.decodeFromString<LotSummary>(json.replace(", \"countedBy\": \"entrance\"", "")).countedBy)
+    }
+
+    @Test
     fun decodesCoordinatesWhenPresent() {
         val json = """{ "street": "Finlandsgade", "houseNr": "22", "city": "Aarhus", "latitude": 56.1716, "longitude": 10.1897 }"""
         assertEquals(Address("Finlandsgade", "22", "Aarhus", 56.1716, 10.1897), ParkingJson.decodeFromString<Address>(json))

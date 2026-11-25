@@ -106,6 +106,7 @@ private fun LotDetailContent(lot: LotDetail, offline: Boolean, fetchedAt: Long) 
                     FullStamp()
                 }
                 FieldLabel("${lot.address.city} · ${lot.carsInside} cars inside")
+                if (lot.countedBy == "entrance") FieldLabel("Counted at the entrance gate")
                 Button(onClick = { navigateTo(context, lot.address) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(NavigationArrow, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
@@ -115,16 +116,18 @@ private fun LotDetailContent(lot: LotDetail, offline: Boolean, fetchedAt: Long) 
                 PrintStamp(fetchedAt, offline, printKey = lot)
             }
         }
-        Ticket(Modifier.fillMaxWidth()) {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                lot.rows.forEach { row ->
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Row ${row.id} · ${row.freeSpots} free", style = TicketType.unit, color = c.ink)
-                        PaintedBays(row.spots)
+        if (lot.countedBy != "entrance") {
+            Ticket(Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    lot.rows.forEach { row ->
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Row ${row.id} · ${row.freeSpots} free", style = TicketType.unit, color = c.ink)
+                            PaintedBays(row.spots)
+                        }
                     }
+                    TearRule()
+                    BayLegend()
                 }
-                TearRule()
-                BayLegend()
             }
         }
         if (lot.forecast.isNotEmpty()) ForecastCard(lot.forecast, lot.totalSpots)

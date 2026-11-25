@@ -162,6 +162,9 @@ async function fetchLots() {
 
 const spotsOf = lot => lot.rows.flatMap(r => r.spots);
 const freeOf = spots => spots.filter(s => !s.occupied).length;
+/** A lot counted at the entrance: free = spots minus the cars the gate counted; its spot states mean nothing. */
+const isGate = lot => lot.countedBy === 'entrance';
+const freeOfLot = lot => isGate(lot) ? Math.max(0, spotsOf(lot).length - lot.carsInside) : freeOf(spotsOf(lot));
 
 // ---------- painted bays ----------
 
@@ -239,9 +242,10 @@ function lotTicket(lot) {
       h('div', { class: 'lot-head' }, plate(), h('div', {},
         h('h2', { text: lotName(lot) }),
         field(`${lot.address.city} · lot ${lot.id}`))),
-      countBlock(freeOf(spots), spots.length, false),
-      lot.entranceSensorIds.length > 0 && field(carsInside(lot)),
-      spots.length ? bays(spots) : h('p', { class: 'muted', text: 'No spots yet' }),
+      countBlock(freeOfLot(lot), spots.length, false),
+      (isGate(lot) || lot.entranceSensorIds.length > 0) && field(carsInside(lot)),
+      isGate(lot) && field('Counted at the entrance'),
+      isGate(lot) ? null : spots.length ? bays(spots) : h('p', { class: 'muted', text: 'No spots yet' }),
       tear()));
 }
 
@@ -254,17 +258,25 @@ async function updateChip(chip) {
   } catch (e) { fail(e); }
 }
 
+function countingSelect(value = 'spots') {
+  const sel = h('select', { name: 'countedBy', 'aria-label': 'Counted by' },
+    h('option', { value: 'spots' }, 'Spot sensors'), h('option', { value: 'entrance' }, 'Entrance gate'));
+  sel.value = value;
+  return sel;
+}
+
 function addLotForm() {
   const form = h('form', { class: 'form' },
     h('label', {}, 'Street', h('input', { name: 'street', required: true, maxlength: 50, autocomplete: 'off' })),
     h('label', {}, 'House number', h('input', { name: 'houseNr', required: true, maxlength: 10, autocomplete: 'off' })),
     h('label', {}, 'City', h('input', { name: 'city', required: true, maxlength: 50, value: 'Aarhus' })),
+    h('label', {}, 'Counted by', countingSelect()),
     h('button', { class: 'btn btn-ink', type: 'submit' }, 'Add lot'));
   form.addEventListener('submit', async e => {
     e.preventDefault();
     const f = new FormData(form);
     const ok = await busy(form, () => act('/api/admin/lots', {
-      method: 'POST', json: { street: f.get('street').trim(), houseNr: f.get('houseNr').trim(), city: f.get('city').trim() },
+      method: 'POST', json: { street: f.get('street').trim(), houseNr: f.get('houseNr').trim(), city: f.get('city').trim(), countedBy: f.get('countedBy') },
     }, 'Lot added.'));
     if (ok) { form.reset(); onChange.forEach(fn => fn()); }
   });
@@ -295,7 +307,7 @@ async function pageLot(id) {
       shape = null;
       return;
     }
-    const next = JSON.stringify([lot.address, lot.entranceSensorIds, lot.rows.map(r => [r.id, r.spots.map(s => [s.id, s.sensorId])])]);
+    const next = JSON.stringify([lot.address, lot.entranceSensorIds, lot.rows.map(r => [r.id, r.spots.map(s => [s.id, s.sensorId])]), lot.countedBy]);
     if (next !== shape) {
       const open = [...view.querySelectorAll('details[open]')].map(d => d.dataset.key);
       refs = buildLot(lot, back, refresh);
@@ -315,7 +327,8 @@ function buildLot(lot, back, refresh) {
       h('h1', { id: 'lot-title', text: lotName(lot) }),
       field(`${lot.address.city} · lot ${lot.id}`))),
     refs.count,
-    lot.entranceSensorIds.length > 0 && refs.cars,
+    (isGate(lot) || lot.entranceSensorIds.length > 0) && refs.cars,
+    isGate(lot) && field('Counted at the entrance'),
     field(lot.entranceSensorIds.length ? `Entrance sensors: ${lot.entranceSensorIds.join(', ')}` : 'No entrance sensor'),
     tear(),
     refs.stamp);
@@ -324,23 +337,42 @@ function buildLot(lot, back, refresh) {
     const head = h('h2', {});
     const strip = h('div');
     refs.rows.set(row.id, { head, strip });
+    if (isGate(lot)) head.textContent = `Row ${row.id} · ${row.spots.length} spots`;
     return h('section', { class: 'ticket row' }, head, strip, can('admin') && rowTools(lot, row, refresh), tear());
   });
 
   swap(view, back, hero,
-    h('div', { class: 'row-head' }, h('h2', { class: 'section-title', text: 'Rows' }), legend(true)),
-    can('operator') && h('p', { class: 'hint', text: 'Select a bay to flip it between free and taken. Bays without a sensor cannot be flipped.' }),
-    rows.length ? rows : h('p', { class: 'empty', text: 'This lot has no rows yet.' }),
+    isGate(lot) ? gateNote(lot, refresh) : [
+      h('div', { class: 'row-head' }, h('h2', { class: 'section-title', text: 'Rows' }), legend(true)),
+      can('operator') && h('p', { class: 'hint', text: 'Select a bay to flip it between free and taken. Bays without a sensor cannot be flipped.' })],
+    isGate(lot) && !can('admin') ? null : rows.length ? rows : h('p', { class: 'empty', text: 'This lot has no rows yet.' }),
     can('admin') ? lotTools(lot, refresh) : h('p', { class: 'hint', text: 'Only an admin can edit this lot.' }));
   return refs;
 }
 
+/** Replaces the rows section of a lot counted at the entrance; operators can simulate a car passing the gate. */
+function gateNote(lot, refresh) {
+  const send = (dir, label) => {
+    const b = h('button', { class: 'btn btn-ink', type: 'button', onclick: async () => {
+      b.disabled = true;
+      await act(`/api/admin/simulator/lots/${lot.id}/entrance`, { method: 'POST', json: { dir } }, `${label} recorded.`,
+        { 404: 'This lot has no entrance sensor.' });
+      b.disabled = false;
+      refresh();
+    } }, label);
+    return b;
+  };
+  return [h('p', { class: 'hint', text: 'This car park is counted at the entrance gate; spot states are not used.' }),
+    can('operator') && h('div', { class: 'form inline' }, send(1, 'Car in'), send(-1, 'Car out'))];
+}
+
 function fillLot(lot, refs) {
   const spots = spotsOf(lot);
-  swap(refs.count, countBlock(freeOf(spots), spots.length, true));
+  swap(refs.count, countBlock(freeOfLot(lot), spots.length, true));
   refs.cars.textContent = carsInside(lot);
   for (const row of lot.rows) {
     const r = refs.rows.get(row.id);
+    if (isGate(lot)) continue; // spot states are not used: buildLot wrote the row head and left no bays
     r.head.textContent = `Row ${row.id} · ${freeOf(row.spots)} of ${row.spots.length} free`;
     swap(r.strip, row.spots.length
       ? bays(row.spots, { label: `Row ${row.id} spots`, onToggle: can('operator') ? toggleSpot : null })
@@ -414,6 +446,12 @@ function lotTools(lot, refresh) {
     refresh();
   } }, 'Add row');
 
+  const counting = countingSelect(lot.countedBy);
+  counting.addEventListener('change', async () => {
+    await act(`/api/admin/lots/${lot.id}/counting`, { method: 'PUT', json: { countedBy: counting.value } }, 'Counting changed.');
+    refresh();
+  });
+
   const move = h('div');
   const loadParked = async () => {
     try {
@@ -424,6 +462,7 @@ function lotTools(lot, refresh) {
   };
   const details = h('details', { class: 'tools', 'data-key': 'lot-tools' },
     h('summary', {}, 'Edit lot'),
+    h('h3', { text: 'Counted by' }), counting,
     h('h3', { text: 'Add a row' }), addRow,
     h('h3', { text: 'Add an entrance sensor' }),
     sensorForm(`/api/admin/lots/${lot.id}/entrance-sensors`, 'Add entrance sensor', s => `Entrance sensor ${s} added.`, refresh),
@@ -506,7 +545,7 @@ async function pageTraffic() {
     if (!s.running) return;
     swap(facts,
       h('dt', {}, 'Lot'), h('dd', { text: nameOf(s.lotId) }),
-      h('dt', {}, 'Target'), h('dd', { text: `${Math.round(s.targetOccupancy * 100)}% taken` }),
+      h('dt', {}, 'Target'), h('dd', { text: `${Math.round(s.targetOccupancy * 100)}% ${isGate(lots.find(x => x.id === s.lotId) || {}) ? 'full (cars inside)' : 'taken'}` }),
       h('dt', {}, 'Speed'), h('dd', { text: `${s.changesPerMinute} changes a minute` }),
       h('dt', {}, 'Changes so far'), h('dd', { text: String(s.changes) }));
     tick();
@@ -524,7 +563,7 @@ async function pageTraffic() {
       return;
     }
     const lotSel = h('select', { name: 'lot', required: true },
-      lots.map(l => h('option', { value: l.id }, `${lotName(l)} (${spotsOf(l).length} spots)`)));
+      lots.map(l => h('option', { value: l.id }, `${lotName(l)} (${spotsOf(l).length} spots${isGate(l) ? ', counted at the entrance' : ''})`)));
     const target = h('input', { type: 'range', name: 'target', min: 0, max: 100, step: 5, value: 70, id: 'sim-target' });
     const out = h('output', { for: 'sim-target', class: 'out', text: '70%' });
     target.addEventListener('input', () => { out.textContent = target.value + '%'; });
@@ -539,7 +578,7 @@ async function pageTraffic() {
       await busy(form, () => act('/api/admin/simulator/traffic', {
         method: 'POST',
         json: { lotId: Number(lotSel.value), targetOccupancy: Number(target.value) / 100, changesPerMinute: Number(rate.value) },
-      }, 'Traffic simulator started.', { 404: 'That lot no longer exists. Pick another.', 409: 'A simulation is already running. Stop it first.' }));
+      }, 'Traffic simulator started.', { 404: 'That lot no longer exists. Pick another.', 409: 'A simulation is already running (stop it first), or this lot has no entrance sensor.' }));
       load();
     });
     swap(status, field('Status'), h('h2', { id: 'sim-title', class: 'state', text: 'Stopped' }),

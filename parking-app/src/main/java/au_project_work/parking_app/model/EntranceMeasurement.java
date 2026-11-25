@@ -27,10 +27,14 @@ public class EntranceMeasurement {
     @Column(name = "measured_at", nullable = false)
     private Instant measuredAt;
 
+    @Column(name = "simulated", nullable = false)
+    private boolean simulated;
+
     protected EntranceMeasurement() {
     }
 
-    public EntranceMeasurement(Integer entranceSensorId, Integer measuredValue, Instant measuredAt) {
+    public EntranceMeasurement(Integer entranceSensorId, Integer measuredValue, Instant measuredAt, boolean simulated) {
+        this.simulated = simulated;
         this.entranceSensorId = entranceSensorId;
         this.measuredValue = measuredValue;
         this.measuredAt = measuredAt;

@@ -57,6 +57,7 @@ class AdminApiTests {
     @AfterEach
     void cleanUp() {
         jdbc.update("UPDATE parking_lots SET archived_at = now() WHERE parking_lot_id > ? AND archived_at IS NULL", lotsBefore);
+        jdbc.update("DELETE FROM entrance_measurements WHERE entrance_sensor_id BETWEEN 9160 AND 9169");
     }
 
     private static RequestPostProcessor as(String role) {
@@ -278,5 +279,57 @@ class AdminApiTests {
         String log = output.getAll();
         assertTrue(log.contains("create lot by sub=sub-1 username=ana lot=" + lot), log);
         assertTrue(!log.contains("Test St"), "free text must not be logged");
+    }
+    private void gateReading(int sensor, int value) {
+        jdbc.update("INSERT INTO entrance_measurements (entrance_sensor_id, measured_value, measured_at) VALUES (?, ?, now())", sensor, value);
+    }
+
+    @Test
+    void entranceLotShowsCapacityMinusCarsInsideAndNoForecast() throws Exception {
+        int lot = create("/api/admin/lots", LOT.replace("}", ",\"countedBy\":\"entrance\"}"));
+        int row = create("/api/admin/lots/" + lot + "/rows", "");
+        for (int sensor = 9161; sensor <= 9163; sensor++) {
+            create("/api/admin/rows/" + row + "/spots", sensor(sensor)); // spot states are not used for this lot
+        }
+        create("/api/admin/lots/" + lot + "/entrance-sensors", sensor(9164));
+        gateReading(9164, 1);
+        gateReading(9164, 1);
+        mvc.perform(get("/parking-lots/" + lot))
+                .andExpect(jsonPath("$.countedBy").value("entrance"))
+                .andExpect(jsonPath("$.totalSpots").value(3))
+                .andExpect(jsonPath("$.freeSpots").value(1))
+                .andExpect(jsonPath("$.carsInside").value(2))
+                .andExpect(jsonPath("$.rows[0].spots.length()").value(3))
+                .andExpect(jsonPath("$.forecast").isEmpty());
+        mvc.perform(get("/parking-lots")).andExpect(jsonPath("$[?(@.id == " + lot + ")].freeSpots").value(1))
+                .andExpect(jsonPath("$[?(@.id == " + lot + ")].countedBy").value("entrance"));
+        mvc.perform(get("/api/admin/lots").with(as("VIEWER"))).andExpect(jsonPath("$[?(@.id == " + lot + ")].countedBy").value("entrance"));
+        gateReading(9164, 1);
+        gateReading(9164, 1); // 4 cars in a lot of 3: free stays at 0
+        mvc.perform(get("/parking-lots/" + lot)).andExpect(jsonPath("$.freeSpots").value(0));
+        mvc.perform(get("/parking-lots/1")).andExpect(jsonPath("$.countedBy").value("spots")); // the seeded lot is unchanged
+    }
+
+    @Test
+    void countingCanBeChangedByAdminOnly() throws Exception {
+        int lot = create("/api/admin/lots", LOT);
+        create("/api/admin/lots/" + lot + "/rows", "");
+        String body = "{\"countedBy\":\"entrance\"}";
+        String path = "/api/admin/lots/" + lot + "/counting";
+        for (String role : new String[] {"VIEWER", "OPERATOR"}) {
+            mvc.perform(put(path).with(as(role)).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+        }
+        mvc.perform(put(path).with(as("ADMIN")).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isNoContent());
+        mvc.perform(get("/parking-lots/" + lot)).andExpect(jsonPath("$.countedBy").value("entrance"));
+        mvc.perform(put(path).with(as("ADMIN")).contentType(MediaType.APPLICATION_JSON).content("{\"countedBy\":\"spots\"}"))
+                .andExpect(status().isNoContent());
+        mvc.perform(get("/parking-lots/" + lot)).andExpect(jsonPath("$.countedBy").value("spots"));
+        for (String bad : new String[] {"{\"countedBy\":\"gate\"}", "{}", "{\"countedBy\":null}"}) {
+            mvc.perform(put(path).with(as("ADMIN")).contentType(MediaType.APPLICATION_JSON).content(bad)).andExpect(status().isBadRequest());
+        }
+        mvc.perform(put("/api/admin/lots/999999/counting").with(as("ADMIN")).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/api/admin/lots").with(as("ADMIN")).contentType(MediaType.APPLICATION_JSON)
+                .content(LOT.replace("}", ",\"countedBy\":\"gate\"}"))).andExpect(status().isBadRequest());
     }
 }

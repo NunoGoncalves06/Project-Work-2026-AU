@@ -48,6 +48,7 @@ public class SimulatorService {
 
     private final JdbcTemplate jdbc;
     private final ParkingSpotMeasurementService measurements;
+    private final EntranceMeasurementService gateReadings;
     private final TaskScheduler scheduler;
     private final Clock clock;
     private final RandomGenerator random;
@@ -56,6 +57,7 @@ public class SimulatorService {
     // all below guarded by lock; task == null means nothing runs
     private ScheduledFuture<?> task;
     private int lotId;
+    private boolean gateLot; // the lot is counted at the entrance: the run sends gate readings
     private double target;
     private int changesPerMinute;
     private Instant startedAt;
@@ -64,8 +66,9 @@ public class SimulatorService {
     // spot -> its occupied value when the simulation first changed it
     private final Map<Integer, Boolean> touched = new HashMap<>();
 
-    public SimulatorService(JdbcTemplate jdbc, ParkingSpotMeasurementService measurements, TaskScheduler scheduler,
-            Clock clock, RandomGenerator random) {
+    public SimulatorService(JdbcTemplate jdbc, ParkingSpotMeasurementService measurements, EntranceMeasurementService gateReadings,
+            TaskScheduler scheduler, Clock clock, RandomGenerator random) {
+        this.gateReadings = gateReadings;
         this.jdbc = jdbc;
         this.measurements = measurements;
         this.scheduler = scheduler;
@@ -84,17 +87,39 @@ public class SimulatorService {
         measurements.record(sensor.get(0), occupied, true);
     }
 
-    /** @throws ResponseStatusException 404 for an unknown or archived lot, 409 when a simulation is running */
+    /** One simulated car in (1) or out (-1) at the lot's first entrance sensor. @throws ResponseStatusException 400 for another dir, 404 when the lot is unknown, archived or has no gate */
+    public void gate(int lotId, int dir) {
+        if (dir != 1 && dir != -1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dir must be 1 or -1");
+        }
+        List<Integer> gate = gatesOf(lotId);
+        if (gate.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Not found");
+        }
+        gateReadings.record(gate.get(0), dir, true);
+    }
+
+    private List<Integer> gatesOf(int lotId) {
+        return jdbc.queryForList("SELECT s.entrance_sensor_id FROM entrance_sensors s JOIN parking_lots l ON l.parking_lot_id = s.parking_lot_id "
+                + "WHERE l.parking_lot_id = ? AND l.archived_at IS NULL ORDER BY s.entrance_sensor_id", Integer.class, lotId);
+    }
+
+    /** @throws ResponseStatusException 404 for an unknown or archived lot, 409 when a simulation is running or an entrance lot has no gate */
     public void start(int lotId, double target, int changesPerMinute) {
         synchronized (lock) {
             if (task != null) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Already running");
             }
-            if (!Boolean.TRUE.equals(jdbc.queryForObject(
-                    "SELECT EXISTS (SELECT 1 FROM parking_lots WHERE parking_lot_id = ? AND archived_at IS NULL)",
-                    Boolean.class, lotId))) {
+            List<String> counted = jdbc.queryForList(
+                    "SELECT counted_by FROM parking_lots WHERE parking_lot_id = ? AND archived_at IS NULL", String.class, lotId);
+            if (counted.isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Not found");
             }
+            boolean gate = "entrance".equals(counted.get(0));
+            if (gate && gatesOf(lotId).isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This car park has no entrance sensor");
+            }
+            gateLot = gate;
             this.lotId = lotId;
             this.target = target;
             this.changesPerMinute = changesPerMinute;
@@ -151,6 +176,10 @@ public class SimulatorService {
                 AUDIT.info("stop traffic by sub=system username=system lot={} reason=auto-stop", lot);
                 return;
             }
+            if (gateLot) {
+                gateTick();
+                return;
+            }
             List<SensorSpot> spots = jdbc.query(SENSOR_SPOTS + " AND l.parking_lot_id = ? ORDER BY sp.parking_spot_id",
                     (rs, i) -> new SensorSpot(rs.getInt(1), rs.getInt(2), rs.getBoolean(3)), lotId);
             if (spots.isEmpty()) {
@@ -169,6 +198,21 @@ public class SimulatorService {
         }
     }
 
+    // one gate reading (+1 or -1) towards the target: cars inside / spots in the lot, same noise as the spot version
+    private void gateTick() {
+        long total = jdbc.queryForObject("SELECT count(*) FROM parking_spots sp JOIN parking_rows r ON r.parking_row_id = sp.parking_row_id "
+                + "WHERE r.parking_lot_id = ? AND sp.archived_at IS NULL AND r.archived_at IS NULL", Long.class, lotId);
+        long inside = jdbc.queryForObject("SELECT GREATEST(0, COALESCE(SUM(m.measured_value), 0)) FROM entrance_measurements m "
+                + "JOIN entrance_sensors s ON s.entrance_sensor_id = m.entrance_sensor_id WHERE s.parking_lot_id = ?", Long.class, lotId);
+        List<Integer> gate = gatesOf(lotId);
+        boolean in = (inside < target * total) ^ (random.nextDouble() < NOISE);
+        if (gate.isEmpty() || (in ? inside >= total : inside == 0)) {
+            return; // nothing to do, or already full / empty
+        }
+        gateReadings.record(gate.get(0), in ? 1 : -1, true);
+        changes++;
+    }
+
     // each touched spot goes back to a real reading made during the run, else to what it was when first touched: a direct update, no new history row
     private Integer stopLocked() {
         if (task == null) {
@@ -176,6 +220,10 @@ public class SimulatorService {
         }
         task.cancel(false);
         task = null;
+        if (gateLot) { // the run's simulated gate readings go, so the count is what it was
+            jdbc.update("DELETE FROM entrance_measurements WHERE simulated AND measured_at >= ? AND entrance_sensor_id IN "
+                    + "(SELECT entrance_sensor_id FROM entrance_sensors WHERE parking_lot_id = ?)", Timestamp.from(startedAt), lotId);
+        }
         for (var e : touched.entrySet()) {
             jdbc.update("""
                     UPDATE parking_spots sp SET updated_at = now(), occupied = coalesce((

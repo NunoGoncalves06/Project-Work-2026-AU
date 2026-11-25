@@ -29,7 +29,7 @@ public final class Dtos {
     public record RowDto(Integer id, long freeSpots, List<SpotDto> spots) {
     }
 
-    public record LotSummaryDto(Integer id, AddressDto address, int totalSpots, long freeSpots, long carsInside) {
+    public record LotSummaryDto(Integer id, AddressDto address, int totalSpots, long freeSpots, long carsInside, String countedBy) {
     }
 
     // free spots usually seen at this time of the week; see ParkingLotRepository.forecast
@@ -44,7 +44,7 @@ public final class Dtos {
     public record MeDto(String sub, String username, String role) {
     }
 
-    public record LotDetailDto(Integer id, AddressDto address, int totalSpots, long freeSpots, long carsInside,
+    public record LotDetailDto(Integer id, AddressDto address, int totalSpots, long freeSpots, long carsInside, String countedBy,
                                List<RowDto> rows, List<ForecastDto> forecast) {
     }
 
@@ -56,7 +56,7 @@ public final class Dtos {
     }
 
     public record AdminLotDto(Integer id, AddressDto address, List<AdminRowDto> rows, List<Integer> entranceSensorIds,
-            long carsInside) {
+            long carsInside, String countedBy) {
     }
 
     public record IdDto(Integer id) {
@@ -72,10 +72,19 @@ public final class Dtos {
             @NotBlank @Size(max = 10) @Pattern(regexp = NO_CONTROL) String houseNr,
             @NotBlank @Size(max = 50) @Pattern(regexp = NO_CONTROL) String city,
             @DecimalMin("-90") @DecimalMax("90") Double latitude,
-            @DecimalMin("-180") @DecimalMax("180") Double longitude) {
+            @DecimalMin("-180") @DecimalMax("180") Double longitude,
+            @Pattern(regexp = "spots|entrance") String countedBy) {
     }
 
     // sensorId is the device_id the board sends
+    // how the lot is counted: spots or entrance
+    public record CountingRequest(@NotNull @Pattern(regexp = "spots|entrance") String countedBy) {
+    }
+
+    // dir: 1 = a car in, -1 = a car out
+    public record GateReadingRequest(@NotNull Integer dir) {
+    }
+
     public record SensorRequest(@NotNull @Min(1) Integer sensorId) {
     }
 

@@ -1,5 +1,6 @@
 package au_project_work.parking_app;
 
+import au_project_work.parking_app.service.EntranceMeasurementService;
 import au_project_work.parking_app.service.ParkingSpotMeasurementService;
 import au_project_work.parking_app.service.SimulatorService;
 import org.junit.jupiter.api.AfterEach;
@@ -44,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SimulatorTests {
 
     private static final AtomicInteger SENSOR_IDS = new AtomicInteger(9300);
+    private static final AtomicInteger GATE_IDS = new AtomicInteger(9500);
     private static final String TRAFFIC = "/api/admin/simulator/traffic";
 
     @Autowired
@@ -54,6 +56,8 @@ class SimulatorTests {
     private SimulatorService sim; // the bean the routes use
     @Autowired
     private ParkingSpotMeasurementService measurements;
+    @Autowired
+    private EntranceMeasurementService gateReadings;
     @Autowired
     private TaskScheduler scheduler;
 
@@ -72,6 +76,7 @@ class SimulatorTests {
         sim.stop();
         jdbc.update("UPDATE parking_lots SET archived_at = now() WHERE parking_lot_id > ? AND archived_at IS NULL", lotsBefore);
         jdbc.update("DELETE FROM parking_spot_measurements WHERE parking_spot_sensor_id >= ?", firstSensor);
+        jdbc.update("DELETE FROM entrance_measurements WHERE entrance_sensor_id >= 9500");
     }
 
     private static RequestPostProcessor as(String role) {
@@ -215,7 +220,7 @@ class SimulatorTests {
         for (int i = 0; i < spots.length; i++) {
             spots[i] = newSpot(row, true);
         }
-        SimulatorService s = new SimulatorService(jdbc, measurements, scheduler, new FakeClock(), new Random(42));
+        SimulatorService s = new SimulatorService(jdbc, measurements, gateReadings, scheduler, new FakeClock(), new Random(42));
         s.start(lot, 0.5, 1); // a tick every 60 s: never fires inside this test, the ticks below are driven by hand
         for (int i = 0; i < 40; i++) {
             s.tick();
@@ -236,7 +241,7 @@ class SimulatorTests {
         int lot = jdbc.queryForObject("SELECT parking_lot_id FROM parking_rows WHERE parking_row_id = ?", Integer.class, row);
         newSpot(row, true);
         FakeClock clock = new FakeClock();
-        SimulatorService s = new SimulatorService(jdbc, measurements, scheduler, clock, new Random(1));
+        SimulatorService s = new SimulatorService(jdbc, measurements, gateReadings, scheduler, clock, new Random(1));
         s.start(lot, 1.0, 1);
         clock.now = clock.now.plus(Duration.ofMinutes(59));
         s.tick();
@@ -255,7 +260,7 @@ class SimulatorTests {
         int none = newSpot(row, true); // no real reading: free
         measurements.record(sensorOf(real), true);
         FakeClock clock = new FakeClock();
-        SimulatorService s = new SimulatorService(jdbc, measurements, scheduler, clock, new Random(7));
+        SimulatorService s = new SimulatorService(jdbc, measurements, gateReadings, scheduler, clock, new Random(7));
         s.start(lot, 0.0, 60);
         for (int i = 0; i < 30; i++) {
             s.tick();
@@ -272,7 +277,7 @@ class SimulatorTests {
     private void runAndStop(int lot, int spot, Instant startsAt, Runnable duringRun) {
         FakeClock clock = new FakeClock();
         clock.now = startsAt;
-        SimulatorService s = new SimulatorService(jdbc, measurements, scheduler, clock, new Random(3));
+        SimulatorService s = new SimulatorService(jdbc, measurements, gateReadings, scheduler, clock, new Random(3));
         s.start(lot, 1.0, 60);
         for (int i = 0; i < 30; i++) {
             s.tick();
@@ -300,5 +305,86 @@ class SimulatorTests {
         int spot = newSpot(row, true);
         runAndStop(lot, spot, Instant.now().minusSeconds(3600), () -> measurements.record(sensorOf(spot), true));
         assertTrue(occupied(spot));
+    }
+    private int newGate(int lot) {
+        int id = GATE_IDS.getAndIncrement();
+        jdbc.update("INSERT INTO entrance_sensors (entrance_sensor_id, parking_lot_id) VALUES (?, ?)", id, lot);
+        return id;
+    }
+
+    private int entranceLot(int spots, boolean withGate) {
+        int lot = newLot();
+        jdbc.update("UPDATE parking_lots SET counted_by = 'entrance' WHERE parking_lot_id = ?", lot);
+        int row = newRow(lot);
+        for (int i = 0; i < spots; i++) {
+            newSpot(row, false);
+        }
+        if (withGate) {
+            newGate(lot);
+        }
+        return lot;
+    }
+
+    private long carsInside(int lot) {
+        return jdbc.queryForObject("""
+                SELECT COALESCE(SUM(m.measured_value), 0) FROM entrance_measurements m
+                JOIN entrance_sensors s ON s.entrance_sensor_id = m.entrance_sensor_id WHERE s.parking_lot_id = ?""", Long.class, lot);
+    }
+
+    @Test
+    void gateRouteStoresASimulatedReadingAndChangesCarsInside(CapturedOutput output) throws Exception {
+        int lot = entranceLot(5, true);
+        String path = "/api/admin/simulator/lots/" + lot + "/entrance";
+        for (int dir : new int[] {1, 1, -1}) {
+            mvc.perform(post(path).with(as("OPERATOR")).contentType(MediaType.APPLICATION_JSON).content("{\"dir\":" + dir + "}"))
+                    .andExpect(status().isOk());
+        }
+        assertEquals(3, jdbc.queryForObject("SELECT count(*) FROM entrance_measurements m JOIN entrance_sensors s "
+                + "ON s.entrance_sensor_id = m.entrance_sensor_id WHERE s.parking_lot_id = ? AND m.simulated", Integer.class, lot));
+        mvc.perform(get("/parking-lots/" + lot)).andExpect(jsonPath("$.carsInside").value(1)).andExpect(jsonPath("$.freeSpots").value(4));
+        assertTrue(output.getAll().contains("simulate gate by sub=sub-1 username=ana lot=" + lot + " dir=-1"));
+    }
+
+    @Test
+    void gateRouteIs404WithoutAGateOr400ForABadDirAnd403ForAViewer() throws Exception {
+        int noGate = entranceLot(5, false);
+        int lot = entranceLot(5, true);
+        mvc.perform(post("/api/admin/simulator/lots/" + noGate + "/entrance").with(as("OPERATOR"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"dir\":1}")).andExpect(status().isNotFound());
+        mvc.perform(post("/api/admin/simulator/lots/999999/entrance").with(as("OPERATOR"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"dir\":1}")).andExpect(status().isNotFound());
+        for (String body : new String[] {"{\"dir\":0}", "{\"dir\":2}", "{}"}) {
+            mvc.perform(post("/api/admin/simulator/lots/" + lot + "/entrance").with(as("OPERATOR"))
+                    .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
+        }
+        mvc.perform(post("/api/admin/simulator/lots/" + lot + "/entrance").with(as("VIEWER"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"dir\":1}")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void trafficOnAnEntranceLotMovesCarsInsideTowardsTheTargetAndStopRemovesItsReadings() throws Exception {
+        int lot = entranceLot(10, true);
+        int gate = jdbc.queryForObject("SELECT entrance_sensor_id FROM entrance_sensors WHERE parking_lot_id = ?", Integer.class, lot);
+        jdbc.update("INSERT INTO entrance_measurements (entrance_sensor_id, measured_value, measured_at) VALUES (?, 1, now())", gate); // a real car
+        SimulatorService s = new SimulatorService(jdbc, measurements, gateReadings, scheduler, new FakeClock(), new Random(42));
+        s.start(lot, 0.5, 1);
+        for (int i = 0; i < 40; i++) {
+            s.tick();
+        }
+        long inside = carsInside(lot);
+        assertTrue(inside >= 2 && inside <= 8, "inside " + inside);
+        assertTrue(s.status().changes() > 20, "changes " + s.status().changes());
+        s.stop();
+        assertEquals(1, carsInside(lot)); // only the real car is left
+        s.tick();
+        assertEquals(1, carsInside(lot));
+    }
+
+    @Test
+    void trafficOnAnEntranceLotWithoutAGateIs409() throws Exception {
+        int lot = entranceLot(5, false);
+        mvc.perform(post(TRAFFIC).with(as("OPERATOR")).contentType(MediaType.APPLICATION_JSON).content(traffic(lot, "0.5", 6)))
+                .andExpect(status().isConflict());
+        assertFalse(sim.status().running());
     }
 }

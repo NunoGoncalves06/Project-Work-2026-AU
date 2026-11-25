@@ -40,7 +40,7 @@ public class ParkingLotController {
     public List<LotSummaryDto> getAll() {
         return parkingLotRepository.findAll(Sort.by("id")).stream()
                 .map(lot -> toDetail(lot, List.of()))
-                .map(d -> new LotSummaryDto(d.id(), d.address(), d.totalSpots(), d.freeSpots(), d.carsInside()))
+                .map(d -> new LotSummaryDto(d.id(), d.address(), d.totalSpots(), d.freeSpots(), d.carsInside(), d.countedBy()))
                 .toList();
     }
 
@@ -48,7 +48,7 @@ public class ParkingLotController {
     @Transactional(readOnly = true)
     public LotDetailDto getOne(@PathVariable Integer id) {
         return parkingLotRepository.findById(id)
-                .map(lot -> toDetail(lot, forecastCache.get(lot.getId(), () -> parkingLotRepository.forecast(lot.getId()).stream()
+                .map(lot -> toDetail(lot, "entrance".equals(lot.getCountedBy()) ? List.<ForecastDto>of() : forecastCache.get(lot.getId(), () -> parkingLotRepository.forecast(lot.getId()).stream()
                         .map(f -> new ForecastDto(f.getAt(), f.getFreeSpots())).toList())))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown parking lot " + id));
     }
@@ -62,10 +62,13 @@ public class ParkingLotController {
             return new RowDto(row.getId(), spots.stream().filter(s -> !s.occupied()).count(), spots);
         }).toList();
         int totalSpots = rows.stream().mapToInt(r -> r.spots().size()).sum();
-        long freeSpots = rows.stream().mapToLong(RowDto::freeSpots).sum();
+        boolean gate = "entrance".equals(lot.getCountedBy());
+        long carsInside = entranceMeasurementRepository.carsInside(lot.getId());
+        // gate-counted: the spot states mean nothing, free = capacity minus the cars the gate counted
+        long freeSpots = gate ? Math.max(0, totalSpots - carsInside) : rows.stream().mapToLong(RowDto::freeSpots).sum();
         Address a = lot.getAddress();
         // after demo testing: switch carsInside to carsInsideResyncedAt4am (daily resync to the spot sensors)
         return new LotDetailDto(lot.getId(), new AddressDto(a.getStreet(), a.getHouseNr(), a.getCity(), a.getLatitude(), a.getLongitude()),
-                totalSpots, freeSpots, entranceMeasurementRepository.carsInside(lot.getId()), rows, forecast);
+                totalSpots, freeSpots, carsInside, lot.getCountedBy(), rows, forecast);
     }
 }
