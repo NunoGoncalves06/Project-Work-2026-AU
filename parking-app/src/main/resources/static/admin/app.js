@@ -240,7 +240,7 @@ function lotTicket(lot) {
         h('h2', { text: lotName(lot) }),
         field(`${lot.address.city} · lot ${lot.id}`))),
       countBlock(freeOf(spots), spots.length, false),
-      lot.entranceSensorIds.length && field(carsInside(lot)),
+      lot.entranceSensorIds.length > 0 && field(carsInside(lot)),
       spots.length ? bays(spots) : h('p', { class: 'muted', text: 'No spots yet' }),
       tear()));
 }
@@ -315,7 +315,7 @@ function buildLot(lot, back, refresh) {
       h('h1', { id: 'lot-title', text: lotName(lot) }),
       field(`${lot.address.city} · lot ${lot.id}`))),
     refs.count,
-    lot.entranceSensorIds.length && refs.cars,
+    lot.entranceSensorIds.length > 0 && refs.cars,
     field(lot.entranceSensorIds.length ? `Entrance sensors: ${lot.entranceSensorIds.join(', ')}` : 'No entrance sensor'),
     tear(),
     refs.stamp);
