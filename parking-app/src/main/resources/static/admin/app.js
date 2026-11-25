@@ -197,6 +197,9 @@ function legend(withSensors) {
     withSensors && h('span', {}, h('span', { class: 'key key-free key-unsensed' }), 'no sensor'));
 }
 
+/** Counted at the entrance gate: every car in minus every car out. */
+const carsInside = lot => `${lot.carsInside} ${lot.carsInside === 1 ? 'car' : 'cars'} inside`;
+
 function countBlock(free, total, big) {
   if (total > 0 && free === 0) return h('div', { class: 'count' }, fullStamp(), h('span', { class: 'unit', text: `0 of ${total} free` }));
   return h('div', { class: 'count' },
@@ -237,6 +240,7 @@ function lotTicket(lot) {
         h('h2', { text: lotName(lot) }),
         field(`${lot.address.city} · lot ${lot.id}`))),
       countBlock(freeOf(spots), spots.length, false),
+      lot.entranceSensorIds.length && field(carsInside(lot)),
       spots.length ? bays(spots) : h('p', { class: 'muted', text: 'No spots yet' }),
       tear()));
 }
@@ -305,12 +309,13 @@ async function pageLot(id) {
 }
 
 function buildLot(lot, back, refresh) {
-  const refs = { count: h('div'), rows: new Map(), stamp: printStamp() };
+  const refs = { count: h('div'), cars: field(''), rows: new Map(), stamp: printStamp() };
   const hero = h('section', { class: 'ticket hero', 'aria-labelledby': 'lot-title' },
     h('div', { class: 'lot-head' }, plate(), h('div', {},
       h('h1', { id: 'lot-title', text: lotName(lot) }),
       field(`${lot.address.city} · lot ${lot.id}`))),
     refs.count,
+    lot.entranceSensorIds.length && refs.cars,
     field(lot.entranceSensorIds.length ? `Entrance sensors: ${lot.entranceSensorIds.join(', ')}` : 'No entrance sensor'),
     tear(),
     refs.stamp);
@@ -333,6 +338,7 @@ function buildLot(lot, back, refresh) {
 function fillLot(lot, refs) {
   const spots = spotsOf(lot);
   swap(refs.count, countBlock(freeOf(spots), spots.length, true));
+  refs.cars.textContent = carsInside(lot);
   for (const row of lot.rows) {
     const r = refs.rows.get(row.id);
     r.head.textContent = `Row ${row.id} · ${freeOf(row.spots)} of ${row.spots.length} free`;

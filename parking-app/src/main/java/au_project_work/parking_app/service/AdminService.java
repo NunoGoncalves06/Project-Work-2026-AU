@@ -8,6 +8,7 @@ import au_project_work.parking_app.api.Dtos.AdminSpotDto;
 import au_project_work.parking_app.api.Dtos.CreateLotRequest;
 import au_project_work.parking_app.api.Dtos.ParkedSensorDto;
 import au_project_work.parking_app.model.Address;
+import au_project_work.parking_app.repository.EntranceMeasurementRepository;
 import au_project_work.parking_app.repository.ParkingLotRepository;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -39,8 +40,11 @@ public class AdminService {
     private final JdbcTemplate jdbc;
     private final ParkingLotRepository parkingLotRepository;
     private final ForecastCache forecastCache;
+    private final EntranceMeasurementRepository entranceMeasurementRepository;
 
-    public AdminService(JdbcTemplate jdbc, ParkingLotRepository parkingLotRepository, ForecastCache forecastCache) {
+    public AdminService(JdbcTemplate jdbc, ParkingLotRepository parkingLotRepository, ForecastCache forecastCache,
+            EntranceMeasurementRepository entranceMeasurementRepository) {
+        this.entranceMeasurementRepository = entranceMeasurementRepository;
         this.forecastCache = forecastCache;
         this.jdbc = jdbc;
         this.parkingLotRepository = parkingLotRepository;
@@ -67,7 +71,8 @@ public class AdminService {
                     .toList();
             return new AdminLotDto(lot.getId(),
                     new AddressDto(a.getStreet(), a.getHouseNr(), a.getCity(), a.getLatitude(), a.getLongitude()),
-                    rows, entranceOfLot.getOrDefault(lot.getId(), List.of()));
+                    rows, entranceOfLot.getOrDefault(lot.getId(), List.of()),
+                    entranceMeasurementRepository.carsInside(lot.getId())); // same count as the app (ParkingLotController)
         }).toList();
     }
 
