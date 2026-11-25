@@ -14,6 +14,8 @@ java {
 }
 
 repositories {
+	// Google's copy of Maven Central first: Maven Central often answers GitHub's runners with 429 Too Many Requests
+	maven("https://maven-central.storage-download.googleapis.com/maven2/")
 	mavenCentral()
 }
 
