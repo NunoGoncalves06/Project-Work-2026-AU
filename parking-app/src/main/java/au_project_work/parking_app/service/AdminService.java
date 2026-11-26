@@ -100,12 +100,17 @@ public class AdminService {
                 Integer.class, lotId);
     }
 
-    /** A sensor still attached to an archived spot is moved here instead of created again. */
+    /** A sensor still attached to an archived spot is moved here instead of created again. No sensor: a bare spot. */
     @Transactional
-    public int addSpot(int rowId, int sensorId) {
+    public int addSpot(int rowId, Integer sensorId) {
         if (!exists("SELECT 1 FROM parking_rows r JOIN parking_lots l ON l.parking_lot_id = r.parking_lot_id "
                 + "WHERE r.parking_row_id = ? AND r.archived_at IS NULL AND l.archived_at IS NULL FOR SHARE", rowId)) {
             throw notFound();
+        }
+        if (sensorId == null) {
+            forecastCache.clear();
+            return jdbc.queryForObject("INSERT INTO parking_spots (parking_row_id) VALUES (?) RETURNING parking_spot_id",
+                    Integer.class, rowId);
         }
         // serialises two calls for the same sensor: the second waits, then sees the first one's spot (409)
         jdbc.queryForList("SELECT 1 FROM parking_spot_sensors WHERE parking_spot_sensor_id = ? FOR UPDATE", sensorId);

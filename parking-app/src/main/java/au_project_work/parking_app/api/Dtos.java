@@ -88,6 +88,10 @@ public final class Dtos {
     public record SensorRequest(@NotNull @Min(1) Integer sensorId) {
     }
 
+    // sensorId null: a spot without a sensor (lots counted at the entrance, or a sensor fitted later)
+    public record SpotRequest(@Min(1) Integer sensorId) {
+    }
+
     public record MoveSensorRequest(@NotNull @Min(1) Integer spotId) {
     }
 

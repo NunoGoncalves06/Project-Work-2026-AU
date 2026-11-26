@@ -111,11 +111,11 @@ fun <T> StateContent(
                     if (state.notFound) {
                         Text("Parking lot not found", style = MaterialTheme.typography.titleLarge)
                         Text(
-                            "It may have been removed. Go back to see the lots that exist.",
+                            "It may have been removed. Go back to see the parking lots that exist.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = TicketColors.current.faded,
                         )
-                        if (onBack != null) Button(onClick = onBack) { Text("Back to lots") }
+                        if (onBack != null) Button(onClick = onBack) { Text("Back to parking lots") }
                     } else {
                         Text("Can't reach the server", style = MaterialTheme.typography.titleLarge)
                         Text(
