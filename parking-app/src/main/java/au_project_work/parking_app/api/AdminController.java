@@ -7,6 +7,7 @@ import au_project_work.parking_app.api.Dtos.IdDto;
 import au_project_work.parking_app.api.Dtos.MoveSensorRequest;
 import au_project_work.parking_app.api.Dtos.ParkedSensorDto;
 import au_project_work.parking_app.api.Dtos.SensorRequest;
+import au_project_work.parking_app.api.Dtos.SpotRequest;
 import au_project_work.parking_app.service.AdminService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -83,7 +84,7 @@ public class AdminController {
 
     @PostMapping("/rows/{rowId}/spots")
     @ResponseStatus(HttpStatus.CREATED)
-    public IdDto addSpot(@PathVariable int rowId, @Valid @RequestBody SensorRequest body,
+    public IdDto addSpot(@PathVariable int rowId, @Valid @RequestBody SpotRequest body,
             @CurrentSecurityContext(expression = "authentication") Authentication auth) {
         int id = service.addSpot(rowId, body.sensorId());
         audit(auth, "create spot", "row=" + rowId + " spot=" + id + " sensor=" + body.sensorId());

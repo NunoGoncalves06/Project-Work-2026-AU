@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.semantics.semantics
 import kotlin.math.max
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -48,6 +49,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -328,7 +330,7 @@ fun BayLegend(modifier: Modifier = Modifier) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(14.dp, 18.dp).padding(2.dp).background(c.ink, RoundedCornerShape(percent = 30)))
-            Text("taken", style = TicketType.stamp, color = c.ink)
+            Text("occupied", style = TicketType.stamp, color = c.ink)
         }
     }
 }
@@ -355,5 +357,35 @@ fun AuMark(modifier: Modifier = Modifier) {
 @Composable
 fun FieldLabel(text: String, modifier: Modifier = Modifier) {
     Text(text.uppercase(), style = TicketType.field, color = TicketColors.current.faded, modifier = modifier)
+}
+
+/** How a lot is counted, printed on the ticket: solid box = a sensor on every spot, dashed = entrance and exit sensors. */
+@Composable
+fun MethodLabel(entrance: Boolean, modifier: Modifier = Modifier) {
+    val c = TicketColors.current
+    Text(
+        (if (entrance) "Entrance and exit sensors" else "Sensor on every spot").uppercase(),
+        style = TicketType.field,
+        color = c.ink,
+        modifier = modifier.drawBehind {
+            val w = 1.dp.toPx()
+            val dash = if (entrance) PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx())) else null
+            drawRect(c.ink, topLeft = Offset(w / 2, w / 2), size = Size(size.width - w, size.height - w), style = Stroke(w, pathEffect = dash))
+        }.padding(horizontal = 6.dp, vertical = 1.dp),
+    )
+}
+
+/** A lot counted at the entrance knows how many cars are inside, not where: one bar instead of bays. */
+@Composable
+fun FillBar(carsInside: Int, totalSpots: Int, modifier: Modifier = Modifier, height: Dp = 16.dp) {
+    val c = TicketColors.current
+    val share = if (totalSpots > 0) (carsInside.toFloat() / totalSpots).coerceIn(0f, 1f) else 0f
+    Box(
+        modifier.fillMaxWidth().height(height)
+            .semantics { contentDescription = "$carsInside ${if (carsInside == 1) "car" else "cars"} inside, $totalSpots parking spots" }
+            .border(2.dp, c.ink, RoundedCornerShape(2.dp)).padding(2.dp),
+    ) {
+        Box(Modifier.fillMaxHeight().fillMaxWidth(share).background(c.ink))
+    }
 }
 

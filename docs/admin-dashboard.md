@@ -12,48 +12,62 @@ Source: `parking-app/src/main/java/au_project_work/parking_app/security/Security
 
 | Role | Can do |
 |---|---|
-| viewer | Read only: see the lots, rows, spots and sensor ids, and the Server update status (all `GET /api/admin/**`). Does not see the Traffic tab. |
-| operator | Everything a viewer can, plus the Traffic simulator and flipping a spot between free and taken (`/api/admin/simulator/**`). |
-| admin | Everything an operator can, plus adding and archiving lots, rows and spots, adding sensors, moving parked sensors, and pressing the Update button. |
+| viewer | Read only: see the parking lots, rows, parking spots and sensor ids, and the Server update status (all `GET /api/admin/**`). Does not see the Traffic tab. |
+| operator | Everything a viewer can, plus the Traffic simulator, switching a parking spot between free and occupied, and the Car in / Car out buttons (`/api/admin/simulator/**`). |
+| admin | Everything an operator can, plus adding and archiving parking lots, rows and parking spots, choosing how a parking lot is counted, adding sensors, moving parked sensors, and pressing the Update button. |
 
 ## Pages and buttons
 
-The top bar has the tabs Lots, Traffic (operator and admin only) and Server update, your name and role, and Log out. A LIVE marker shows the page is receiving changes. Source: `parking-app/src/main/resources/static/admin/index.html` and `app.js`.
+The top bar has the tabs Parking lots, Traffic (operator and admin only) and Server update, your name and role, and Log out. A LIVE marker shows the page is receiving changes. Source: `parking-app/src/main/resources/static/admin/index.html` and `app.js`.
 
-### Lots (overview)
+### Two ways to count a parking lot
 
-1. Shows one ticket per lot: street and house number, city, lot id, "N of M free" and the painted bays. A lot with no free spot shows FULL.
+Each parking lot is counted one of two ways, matching the two modes of the sensor board. An admin can switch at any time under **Edit parking lot**; rows and parking spots are kept.
+
+| Method | Sensors | Free parking spots | On the dashboard |
+|---|---|---|---|
+| **Sensor on every parking spot** (most accurate) | one per parking spot, `carcounter/spots` | parking spots minus occupied sensors | solid label "Sensor on every spot", painted bays showing which spots are free |
+| **Entrance and exit sensors** (cheapest) | at the entrance, `carcounter/entrance`, the board sends `dir` +1 for a car in, -1 for a car out | parking spots minus cars inside | dashed label "Entrance and exit sensors", a fill bar with the cars inside; the rows are drawn as layout only, without free/occupied |
+
+A parking lot counted at the entrance still has rows of parking spots: they give its capacity, and they need no sensor. If the lot later gets a sensor on every spot, switch the method and move sensors onto the existing parking spots.
+
+### Parking lots (overview)
+
+1. Shows one ticket per parking lot: street and house number, city, parking lot id, the counting label, "N of M parking spots free", and either the painted bays or the fill bar. A lot with no free parking spot shows FULL.
 2. A chip "Server: ..." links to the Server update page.
-3. Click a lot to open it.
-4. **Add a lot** (admin only): fill Street, House number, City (default `Aarhus`) and press **Add lot**.
+3. Click a parking lot to open it.
+4. **Add a parking lot** (admin only): fill Street, House number, City (default `Aarhus`), pick how cars are counted, press **Add parking lot**.
 
-### Lot detail
+### Parking lot detail
 
-Shows the free count, the entrance sensor ids and one block per row with its bays. A bay is a painted space: a number when free, a car when taken. Bays without a sensor are marked "no sensor" in the legend.
+Shows the free count, the counting label, the cars inside and entrance sensor ids (when the lot has entrance sensors), and one block per row.
 
-1. **Flip a spot** (operator and admin): click a bay to mark it taken or free. Bays without a sensor cannot be flipped. This sends a simulated reading, not a real one (see "Archiving and simulated readings").
-2. **Edit row N** (admin only, opens a panel):
-   1. **Add spot**: type a Sensor id (a whole number, 1 or more) and press **Add spot**. The new spot gets that sensor.
-   2. **Archive a spot**: pick the spot, press **Archive spot...**, confirm.
+- **Sensor on every parking spot**: each row shows its bays. A bay is a painted parking spot: a number when free, a car when occupied. Bays without a sensor are dashed ("no sensor" in the legend). Operators and admins click a bay to mark it occupied or free; bays without a sensor cannot be switched. This sends a simulated reading, not a real one (see "Archiving and simulated readings").
+- **Entrance and exit sensors**: a fill bar shows how full the lot is, and each row shows its parking spots as dashed outlines with no state. Operators and admins can press **Car in** / **Car out** to send a simulated entrance reading.
+
+1. **Edit row N** (admin only, opens a panel):
+   1. **Add a parking spot**: with a sensor on every spot, type a Sensor id (a whole number, 1 or more) and press **Add parking spot**; the new parking spot gets that sensor. With entrance and exit sensors, just press **Add parking spot** (no sensor).
+   2. **Archive a parking spot**: pick it, press **Archive parking spot...**, confirm.
    3. **Archive row N...**: confirm.
-3. **Edit lot** (admin only, opens a panel):
-   1. **Add row**: adds an empty row.
-   2. **Add an entrance sensor**: type a Sensor id, press **Add entrance sensor**.
-   3. **Move a parked sensor here**: a sensor left on an archived spot is "parked". Pick the sensor and a spot of this lot that has no sensor, press **Move sensor**. If there is no parked sensor, or every spot already has one, it says so.
-   4. **Archive lot...**: confirm; you return to the lot list.
+2. **Edit parking lot** (admin only, opens a panel):
+   1. **How cars are counted**: pick one of the two methods; it is saved at once.
+   2. **Add row**: adds an empty row.
+   3. **Add an entrance sensor**: type a Sensor id, press **Add entrance sensor**.
+   4. **Move a parked sensor here** (sensor on every spot only): a sensor left on an archived parking spot is "parked". Pick the sensor and a parking spot of this lot that has no sensor, press **Move sensor**. If there is no parked sensor, or every parking spot already has one, it says so.
+   5. **Archive parking lot...**: confirm; you return to the list.
 
 Every archive asks first: "Archive X?" with **Keep it** (default) and **Archive X**.
 
 ### Traffic simulator (operator and admin)
 
-Moves cars in and out of one lot until it reaches a target occupancy. Source: `SimulatorService.java`, `Dtos.java`.
+Moves cars in and out of one parking lot until it reaches a target occupancy. Source: `SimulatorService.java`, `Dtos.java`.
 
-1. Pick the Lot, set Target occupancy (0 to 100 %, steps of 5, default 70) and Changes per minute (1 to 60, default 12), press **Start**.
+1. Pick the Parking lot, set Target occupancy (0 to 100 %, steps of 5, default 70) and Changes per minute (1 to 60, default 12), press **Start**.
 2. Only one simulation runs at a time (a second start is refused: "A simulation is already running").
-3. While running the page shows Lot, Target, Speed, Changes so far and the time left. Press **Stop** to end it.
+3. While running the page shows Parking lot, Target, Speed, Changes so far and the time left. Press **Stop** to end it.
 4. It stops by itself after 60 minutes, and also when the backend shuts down.
-5. Only spots that have a sensor take part. Each change is a simulated reading. About one change in five moves away from the target, so the lot looks like real traffic.
-6. On stop, every spot the simulation touched goes back to its last real sensor reading (free if it has none).
+5. With a sensor on every parking spot, only parking spots that have a sensor take part; with entrance and exit sensors, the simulator sends Car in / Car out readings until the cars inside reach the target. Each change is a simulated reading. About one change in five moves away from the target, so the lot looks like real traffic.
+6. On stop, every parking spot the simulation touched goes back to its last real sensor reading (free if it has none); for a lot counted at the entrance, the run's simulated Car in / Car out readings are removed.
 
 ### Server update
 
@@ -82,8 +96,8 @@ Other status messages come from the script: "Could not fetch the new version, no
 
 - **Archive** hides a lot, row or spot from the app and from the dashboard. Nothing is deleted. It cannot be undone from the dashboard.
 - The history stays in the database, and the sensor readings of an archived spot are still stored. The forecast ignores archived spots and rows.
-- The sensor of an archived spot becomes "parked": it can be moved to another spot (Edit lot, Move a parked sensor here).
-- A **simulated reading** is a reading created by the dashboard (flipping a bay, or the traffic simulator). It is stored with a `simulated` mark. It changes what the app shows, but the forecast ignores it.
+- The sensor of an archived spot becomes "parked": it can be moved to another spot (Edit parking lot, Move a parked sensor here).
+- A **simulated reading** is a reading created by the dashboard (switching a bay, Car in / Car out, or the traffic simulator). It is stored with a `simulated` mark. It changes what the app shows, but the forecast ignores it.
 
 ## Set up Cognito (AWS console)
 

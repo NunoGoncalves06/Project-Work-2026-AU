@@ -36,6 +36,8 @@ import au.projectwork.parking.data.LotSummary
 import au.projectwork.parking.ui.AuMark
 import au.projectwork.parking.ui.FavouriteToggle
 import au.projectwork.parking.ui.FieldLabel
+import au.projectwork.parking.ui.FillBar
+import au.projectwork.parking.ui.MethodLabel
 import au.projectwork.parking.ui.MoonIcon
 import au.projectwork.parking.ui.SunIcon
 import au.projectwork.parking.ui.FullStamp
@@ -119,7 +121,7 @@ fun LotListScreen(viewModel: LotListViewModel, onLotClick: (Int) -> Unit, dark: 
                         item(key = "no-location") {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    "Sort lots by distance:",
+                                    "Sort parking lots by distance:",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = TicketColors.current.faded,
                                     modifier = Modifier.padding(start = 4.dp),
@@ -172,7 +174,7 @@ private fun HeroTicket(
                 // merged so TalkBack reads "12 of 16 free" as one phrase
                 Row(Modifier.weight(1f).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.Bottom) {
                     Text("${lot.freeSpots}", style = TicketType.heroCount, color = countInk(stale))
-                    Text(" of ${lot.totalSpots}\n free", style = TicketType.unit, color = c.faded, modifier = Modifier.padding(bottom = 10.dp))
+                    Text(" of ${lot.totalSpots}\n parking spots free", style = TicketType.unit, color = c.faded, modifier = Modifier.padding(bottom = 10.dp))
                 }
                 FavouriteToggle(hero.row.favourite, onToggleFavourite)
             }
@@ -183,8 +185,11 @@ private fun HeroTicket(
                     Text("${lot.address.street} ${lot.address.houseNr}", style = MaterialTheme.typography.titleLarge, color = c.ink)
                 }
                 FieldLabel(listOfNotNull(why, hero.row.distanceMeters?.let(::formatDistance), lot.address.city).joinToString(" · "))
+                MethodLabel(lot.isEntrance, Modifier.padding(top = 4.dp))
             }
-            if (spots != null && lot.countedBy != "entrance") {
+            if (lot.isEntrance) {
+                FillBar(lot.carsInside, lot.totalSpots)
+            } else if (spots != null) {
                 PaintedBays(spots.rows.flatMap { it.spots }, maxBayWidth = 32.dp, bayHeight = 40.dp, maxLines = 1)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -206,7 +211,7 @@ private fun AllFullTicket(offline: Boolean, fetchedAt: Long) {
     Ticket(Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             FullStamp()
-            Text("Every lot is full right now", style = MaterialTheme.typography.titleLarge)
+            Text("Every parking lot is full right now", style = MaterialTheme.typography.titleLarge)
             Text(
                 "Counts update live. Pull down to check again.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -230,8 +235,8 @@ private fun Filters(selected: LotFilter, onSelect: (LotFilter) -> Unit) {
 @Composable
 private fun EmptyList(filter: LotFilter, onlyHero: Boolean) {
     val text = when {
-        filter == LotFilter.Favourites -> "No other favourites yet. Tap the star on a lot to keep it here."
-        onlyHero -> "That's the only lot so far."
+        filter == LotFilter.Favourites -> "No other favourites yet. Tap the star on a parking lot to keep it here."
+        onlyHero -> "That's the only parking lot so far."
         else -> "No parking lots yet."
     }
     Text(text, style = MaterialTheme.typography.bodyMedium, color = TicketColors.current.faded, modifier = Modifier.padding(horizontal = 4.dp))
@@ -258,7 +263,7 @@ private fun LotTicket(row: LotRow, stale: Boolean, onClick: () -> Unit, onToggle
                 if (lot.freeSpots > 0) {
                     Row(Modifier.weight(1f).semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.Bottom) {
                         Text("${lot.freeSpots}", style = TicketType.count, color = countInk(stale))
-                        Text(" of ${lot.totalSpots} free", style = TicketType.unit, color = c.faded, modifier = Modifier.padding(bottom = 6.dp))
+                        Text(" of ${lot.totalSpots} parking spots free", style = TicketType.unit, color = c.faded, modifier = Modifier.padding(bottom = 6.dp))
                     }
                 } else {
                     Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { FullStamp() }
@@ -270,9 +275,10 @@ private fun LotTicket(row: LotRow, stale: Boolean, onClick: () -> Unit, onToggle
                     modifier = Modifier.padding(bottom = 6.dp),
                 )
             }
+            if (lot.isEntrance) FillBar(lot.carsInside, lot.totalSpots, height = 10.dp)
         }
     }
 }
 
-/** A gate-counted lot has no spot grid to show, so its details page is not "spots". */
-private fun openLabel(lot: LotSummary) = if (lot.countedBy == "entrance") "See details" else "See spots"
+/** A lot counted at the entrance has no spot states to show, so its page is the lot, not its spots. */
+private fun openLabel(lot: LotSummary) = if (lot.isEntrance) "See parking lot" else "See parking spots"

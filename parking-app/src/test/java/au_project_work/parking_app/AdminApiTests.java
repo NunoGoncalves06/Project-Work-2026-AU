@@ -124,6 +124,23 @@ class AdminApiTests {
                 "SELECT parking_spot_id FROM parking_spot_sensors WHERE parking_spot_sensor_id = 9111", Integer.class));
     }
 
+    @Test
+    void aSpotWithoutASensorCountsAndCanGetASensorLater() throws Exception {
+        int lot = create("/api/admin/lots", LOT);
+        int row = create("/api/admin/lots/" + lot + "/rows", "");
+        int bare = create("/api/admin/rows/" + row + "/spots", "{}"); // a lot counted at the entrance needs no spot sensors
+        postExpect("/api/admin/rows/" + row + "/spots", "{\"sensorId\":0}", 400);
+        mvc.perform(get("/parking-lots/" + lot)).andExpect(jsonPath("$.totalSpots").value(1));
+        assertEquals(0, jdbc.queryForObject("SELECT count(*) FROM parking_spot_sensors WHERE parking_spot_id = ?",
+                Integer.class, bare));
+
+        // switching to a sensor on every spot later: a parked sensor is moved onto the bare spot
+        int other = create("/api/admin/rows/" + row + "/spots", sensor(9171));
+        mvc.perform(delete("/api/admin/spots/" + other).with(as("ADMIN"))).andExpect(status().isNoContent());
+        move(9171, bare, 200);
+        assertEquals(bare, sensorSpot(9171));
+    }
+
     private ResultActions move(int sensor, int spot, int expected) throws Exception {
         return mvc.perform(put("/api/admin/sensors/" + sensor + "/spot").with(as("ADMIN"))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"spotId\":" + spot + "}"))
@@ -141,7 +158,7 @@ class AdminApiTests {
         int row = create("/api/admin/lots/" + lot + "/rows", "");
         int spot1 = create("/api/admin/rows/" + row + "/spots", sensor(9121));
         int other = create("/api/admin/rows/" + row + "/spots", sensor(9122));
-        // the API always creates a spot with its sensor, so make the sensor-less target spot directly
+        // an occupied sensor-less target spot, made directly (the API makes them free)
         int free = jdbc.queryForObject("INSERT INTO parking_spots (parking_row_id, occupied) VALUES (?, true) RETURNING parking_spot_id",
                 Integer.class, row);
         move(9999, free, 404);

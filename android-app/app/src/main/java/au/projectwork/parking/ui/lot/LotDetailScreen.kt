@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -31,6 +32,8 @@ import au.projectwork.parking.data.LotDetail
 import au.projectwork.parking.ui.BayLegend
 import au.projectwork.parking.ui.FavouriteToggle
 import au.projectwork.parking.ui.FieldLabel
+import au.projectwork.parking.ui.FillBar
+import au.projectwork.parking.ui.MethodLabel
 import au.projectwork.parking.ui.FullStamp
 import au.projectwork.parking.ui.PaintedBays
 import au.projectwork.parking.ui.PrintStamp
@@ -100,13 +103,14 @@ private fun LotDetailContent(lot: LotDetail, offline: Boolean, fetchedAt: Long) 
                 if (lot.freeSpots > 0) {
                     Row(Modifier.semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.Bottom) {
                         Text("${lot.freeSpots}", style = TicketType.heroCount, color = countInk(stale))
-                        Text(" of ${lot.totalSpots}\n free", style = TicketType.unit, color = c.faded, modifier = Modifier.padding(bottom = 10.dp))
+                        Text(" of ${lot.totalSpots}\n parking spots free", style = TicketType.unit, color = c.faded, modifier = Modifier.padding(bottom = 10.dp))
                     }
                 } else {
                     FullStamp()
                 }
-                FieldLabel("${lot.address.city} · ${lot.carsInside} cars inside")
-                if (lot.countedBy == "entrance") FieldLabel("Counted at the entrance gate")
+                if (lot.isEntrance) FillBar(lot.carsInside, lot.totalSpots, height = 28.dp)
+                FieldLabel("${lot.address.city} · ${lot.carsInside} ${if (lot.carsInside == 1) "car" else "cars"} inside")
+                MethodLabel(lot.isEntrance)
                 Button(onClick = { navigateTo(context, lot.address) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(NavigationArrow, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
@@ -116,12 +120,27 @@ private fun LotDetailContent(lot: LotDetail, offline: Boolean, fetchedAt: Long) 
                 PrintStamp(fetchedAt, offline, printKey = lot)
             }
         }
-        if (lot.countedBy != "entrance") {
+        if (lot.isEntrance) {
+            // the layout only: the entrance sensors know how many cars are inside, not which spots they use
+            Ticket(Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FieldLabel("Parking spots")
+                    lot.rows.forEach { row ->
+                        Text("Row ${row.id} · ${row.spots.size} parking ${if (row.spots.size == 1) "spot" else "spots"}", style = TicketType.unit, color = c.ink)
+                    }
+                    Text(
+                        "Counted at the entrance: the number of cars inside is known, not which parking spots they use.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = c.faded,
+                    )
+                }
+            }
+        } else {
             Ticket(Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     lot.rows.forEach { row ->
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("Row ${row.id} · ${row.freeSpots} free", style = TicketType.unit, color = c.ink)
+                            Text("Row ${row.id} · ${row.freeSpots} of ${row.spots.size} parking spots free", style = TicketType.unit, color = c.ink)
                             PaintedBays(row.spots)
                         }
                     }
@@ -144,7 +163,7 @@ private fun ForecastCard(forecast: List<Forecast>, totalSpots: Int) {
     val day = days.keys.firstOrNull { it.toString() == picked } ?: days.keys.first()
     Ticket(Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            FieldLabel("Usually free · of $totalSpots spots")
+            FieldLabel("Usually free · of $totalSpots parking spots")
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 days.keys.forEach { d ->
                     FilterChip(selected = d == day, onClick = { picked = d.toString() }, label = { Text(dayLabel(d, LocalDate.now())) })
